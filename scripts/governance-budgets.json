@@ -1,0 +1,26 @@
+{
+  "requiredFiles": [
+    "AGENTS.md", "CONTEXT.md", "LESSONS.md", "CLAUDE.md", ".cursorrules",
+    "README.md", "CONTRIBUTING.md", "SECURITY.md", "docs/GOVERNANCE.md",
+    "docs/AI_RULES.md", "docs/PRODUCT.md", "docs/ARCHITECTURE.md",
+    "docs/CAPTURE_CONTRACT.md", "docs/ROADMAP.md", "docs/DEVELOPMENT_BLUEPRINT.md",
+    "docs/QUALITY.md", "docs/RISK_REGISTER.md", "docs/TECH_DEBT.md",
+    "docs/PRODUCT_CAPABILITY_MATRIX.md", "docs/DEVELOPMENT_GUIDE.md", "docs/MAINTAINERS.md",
+    "docs/ADR/README.md", "docs/ADR/TEMPLATE.md", "docs/archive/README.md",
+    "docs/archive/reviews/2026-10-10-governance-bootstrap.md",
+    "docs/lessons/governance.md", "docs/lessons/windows.md", "docs/lessons/capture.md",
+    "tests/VERIFICATION.md", "scripts/governance-docs-check.ps1", "scripts/verify.ps1",
+    "tests/governance-smoke.ps1", ".github/PULL_REQUEST_TEMPLATE.md", ".github/workflows/ci.yml"
+  ],
+  "budgets": [
+    { "file": "AGENTS.md", "lines": 85, "characters": 5200 },
+    { "file": "CONTEXT.md", "lines": 45, "characters": 3000 },
+    { "file": "LESSONS.md", "lines": 20, "characters": 1800 },
+    { "file": "CLAUDE.md", "lines": 12, "characters": 800 },
+    { "file": ".cursorrules", "lines": 12, "characters": 800 },
+    { "file": "docs/GOVERNANCE.md", "lines": 110, "characters": 4000 },
+    { "file": "docs/QUALITY.md", "lines": 160, "characters": 6500 },
+    { "file": "docs/ROADMAP.md", "lines": 140, "characters": 8000 },
+    { "file": "docs/DEVELOPMENT_BLUEPRINT.md", "lines": 160, "characters": 10000 }
+  ]
+}
