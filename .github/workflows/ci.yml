@@ -1,28 +1,146 @@
-name: Windows governance and build
+name: VeilDesk CI
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
   workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * 1' # Monday 10:17 Asia/Shanghai
 
 permissions:
   contents: read
 
 concurrency:
-  group: veil-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+defaults:
+  run:
+    shell: pwsh
 
 jobs:
-  verify:
+  governance:
+    name: Governance and workflow syntax
     runs-on: windows-2022
+    timeout-minutes: 10
+    outputs:
+      has_service: ${{ steps.inventory.outputs.has_service }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Governance and x64 Release build
-        shell: pwsh
-        run: ./scripts/verify.ps1 -SkipInteractive -ConfigureArgs '-A', 'x64'
-      - name: Explain evidence limits
-        shell: pwsh
-        run: Write-Output 'CI does not validate screen capture, WDA, GPU behavior or interactive desktop compatibility.'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detect service source
+        id: inventory
+        run: |
+          $present = (Test-Path -LiteralPath service/Cargo.toml -PathType Leaf).ToString().ToLowerInvariant()
+          "has_service=$present" >> $env:GITHUB_OUTPUT
+      - name: Validate governance
+        run: ./scripts/governance-docs-check.ps1
+      - name: Exercise governance rejection paths
+        run: ./tests/governance-smoke.ps1
+      - name: Validate GitHub Actions syntax
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color .github/workflows/ci.yml
+
+  cpp:
+    name: C++ x64 / ${{ matrix.configuration }}
+    needs: governance
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure MSVC 2022 x64
+        run: cmake -S . -B build -G 'Visual Studio 17 2022' -A x64 -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config ${{ matrix.configuration }} --parallel 2
+      - name: Run tests without desktop or GPU
+        run: ctest --test-dir build -C ${{ matrix.configuration }} --output-on-failure -LE Interactive -E '^(WindowSmoke|CaptureSmoke|BrokerSmoke|SharedTextureProbe)$' --no-tests=ignore
+      - name: Retain CTest diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ctest-${{ matrix.configuration }}
+          path: build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  rust:
+    name: Rust / ${{ matrix.toolchain }}
+    needs: governance
+    if: ${{ needs.governance.outputs.has_service == 'true' }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: ['1.85.1', stable]
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install selected Rust toolchain
+        run: rustup toolchain install $env:RUSTUP_TOOLCHAIN --profile minimal --component rustfmt --component clippy
+      - name: Cache registry downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/src
+          key: cargo-registry-${{ runner.os }}-${{ matrix.toolchain }}-${{ hashFiles('service/Cargo.lock') }}
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path service/Cargo.toml -- --check
+      - name: Lint all Rust targets
+        run: cargo clippy --manifest-path service/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Verify policy, Release build and console IPC
+        run: ./scripts/verify-service.ps1
+      - name: Verify service and workspace previews
+        run: ./tests/workspace-smoke.ps1
+      - name: Retain console IPC diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: service-console-${{ matrix.toolchain }}
+          path: tests/results/service-*/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  required:
+    name: CI required
+    if: ${{ always() }}
+    needs: [governance, cpp, rust]
+    runs-on: windows-2022
+    timeout-minutes: 5
+    env:
+      GOVERNANCE_RESULT: ${{ needs.governance.result }}
+      CPP_RESULT: ${{ needs.cpp.result }}
+      RUST_RESULT: ${{ needs.rust.result }}
+      HAS_SERVICE: ${{ needs.governance.outputs.has_service }}
+    steps:
+      - name: Check all required outcomes
+        run: |
+          if ($env:GOVERNANCE_RESULT -ne 'success' -or $env:CPP_RESULT -ne 'success') {
+            throw "Required checks failed: governance=$env:GOVERNANCE_RESULT cpp=$env:CPP_RESULT"
+          }
+          $expectedRust = if ($env:HAS_SERVICE -eq 'true') { 'success' } else { 'skipped' }
+          if ($env:RUST_RESULT -ne $expectedRust) { throw "Rust result=$env:RUST_RESULT expected=$expectedRust" }
+          @"
+          ## Verified scope
+          - Governance, workflow syntax, MSVC 2022 x64 Release/Debug and available noninteractive CTest checks.
+          - Rust result: $env:RUST_RESULT; service manifest present: $env:HAS_SERVICE.
+          - Desktop/GPU capture, WDA, SCM installation, Hyper-V and Guest isolation are not exercised by hosted CI.
+          "@ >> $env:GITHUB_STEP_SUMMARY
