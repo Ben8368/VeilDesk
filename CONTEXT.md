@@ -17,7 +17,7 @@
 
 ## 近期优先级
 
-1. G2-A：长测/诊断已实现，4 次实际运行中断；当前桌面 LOCKED，Viewer ACK 停顿未完全定位；[长测记录](docs/evidence/p2-broker/resource-stability.md)，未引入 pool、未进入 G2-B。
+1. G2-A：已完成一次 1800 秒 1080p 资源长测，热身后资源曲线未触发调查阈值；电功耗与高精度 timer 回退性能仍未验证，G2-A 未通过/待完整评审；详情见[长测记录](docs/evidence/p2-broker/resource-stability.md)。benchmark 专用窗口已固定尺寸并屏蔽全屏/移动快捷操作，未引入 pool、未进入 G2-B。
 2. 按 [Blueprint G2 剩余收敛](docs/DEVELOPMENT_BLUEPRINT.md) G2-A→D：长时资源、统一 Authorization Envelope、Authenticode enrollment、在途撤销/故障矩阵；[自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现。
 3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 
@@ -30,7 +30,7 @@
 
 ## 最近验证
 
-- G2-A：最后未锁定版本 Release/Debug CTest 11/11；窗口诊断增量两种构建成功，当前 full verify 因 LOCKED 失败，非交互 CTest 5/5、Rust/console IPC 通过；完整 1800 秒证据缺失，见 [长测记录](docs/evidence/p2-broker/resource-stability.md)。
+- G2-A：benchmark 窗口交互约束后完整运行 1800.059 秒；104286/104286 已生产帧显示，3714 个目标时隙未产生帧；CPU readbacks/uploads 0/0，热身后 337 点资源趋势无调查阈值告警。测试前完整 verify 通过；功耗和 timer 回退性能仍缺，G2-A 未通过，见 [长测记录](docs/evidence/p2-broker/resource-stability.md)。
 - TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒由约 18FPS 提升到约 59FPS（3556–3566/3600），长时资源 Gate 未通过，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
 
 - Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；结果见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。

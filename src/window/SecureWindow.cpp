@@ -190,8 +190,12 @@ LRESULT SecureWindow::ProcessMessage(UINT message, WPARAM wparam, LPARAM lparam)
         return 0;
     }
     case WM_KEYDOWN:
+        if (fixedWindow_ && (wparam == VK_F11 || wparam == VK_ESCAPE)) { return 0; }
         if (wparam == VK_F11 && (lparam & (1LL << 30)) == 0) { ToggleFullscreen(); return 0; }
         if (wparam == VK_ESCAPE && fullscreen_) { ToggleFullscreen(); return 0; }
+        break;
+    case WM_SYSCOMMAND:
+        if (fixedWindow_ && ((wparam & 0xFFF0) == SC_MOVE || (wparam & 0xFFF0) == SC_SIZE)) { return 0; }
         break;
     case WM_ERASEBKGND: return 1;
     case WM_PAINT: {

@@ -14,6 +14,7 @@ public:
     void Show(int command);
     int Run(const std::function<bool()>& render, unsigned int runSeconds = 0, bool smokeTest = false);
     void SetProgress(ProgressWatchdog* observer) noexcept { progress_ = observer; }
+    void SetFixedWindow(bool fixed) noexcept { fixedWindow_ = fixed; }
     void SetResizeHandler(std::function<bool(UINT, UINT)> callback);
     HWND Handle() const noexcept { return hwnd_; }
     UINT Dpi() const noexcept { return dpi_; }
@@ -28,6 +29,7 @@ private:
     bool minimized_ = false;
     bool failed_ = false;
     bool fullscreen_ = false;
+    bool fixedWindow_ = false;
     WINDOWPLACEMENT placement_{sizeof(WINDOWPLACEMENT)};
     std::function<bool(UINT, UINT)> resize_;
 };

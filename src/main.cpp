@@ -111,6 +111,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     }
     if (benchmarkDisplay) {
         if (!sharedSource) { return 1; }
+        window.SetFixedWindow(true);
         // Measurement fixture has no non-client menus/drag loops; normal Viewer retains its window controls.
         SetLastError(ERROR_SUCCESS);
         if (!SetWindowLongPtrW(window.Handle(), GWL_STYLE, WS_POPUP | WS_VISIBLE) && GetLastError() != ERROR_SUCCESS) {
