@@ -10,7 +10,7 @@
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
 - 维护者授权 G2-A→B→C→D；G2-A 限定关闭、G2-B 验证完成。G2-C pin 实现已做但缺项目证书；按要求已启动 G2-D。G2 未通过前不进 G3；Phase 4 和系统变更仍未授权。
 - 独立 producer / Broker / Viewer / PNG 消费者原型已实现；限定结果见 [Broker 证据](docs/evidence/p2-broker/README.md)。
-- Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；见 [服务证据](docs/evidence/p3-service/README.md)。
+- Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；Service 侧 Broker Authenticode/publisher pin 与持久授权连接已实现，正向签名集成尚未测；见 [服务证据](docs/evidence/p3-service/README.md)。
 - Workspace 探针和 VM 生命周期脚本已实现；Guest 显示/输入尚未实现，见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
 - GitHub public 仓库（本轮 `gh api` 实查）：[Ben8368/VeilDesk](https://github.com/Ben8368/VeilDesk)；Phase 2–4 原型与历史署名修正已推送到远端 `main`。
 - 采用单一文档事实源；AI 提交的 `🚦 Audit Report` 与工具级 trailer 见 [AI_RULES](docs/AI_RULES.md)。
@@ -32,11 +32,9 @@
 
 - G2-A：完整 1800.059 秒资源/CPU 长测已完成，电功耗与 timer 回退性能未测；维护者限定接受并关闭 G2-A，相关承诺限制见 [长测记录](docs/evidence/p2-broker/resource-stability.md)。
 - G2-B：Service 绑定真实 pipe 客户端身份；Broker 每帧先原子消费 Service envelope，再交付纹理。端到端批准及伪造/过期/重放/预算/降级/撤销拒绝覆盖。新增有效授权路径 50 秒性能复验约 31.1 FPS，未达 60 FPS 目标；详见[G2-C/D 与性能证据](docs/evidence/p2-broker/g2c-g2d.md)。
-- G2-C/D：WinVerifyTrust + 构建 pin 的 Authenticode 校验、签名负向和平台签名样本通过；项目测试证书缺失。G2-D producer/consumer 退出及 revoke-after-2 有有限证据，Viewer 场景 occluded，Broker crash/device-loss 未测；G2 仍未通过。
-- 最新增量：Windows FFI/身份读取修复；macOS C++ fixture 1/1、Rust 策略 8/8及平台拒绝 1/1、两平台 Clippy 通过，见[核心证据](docs/evidence/portable-core/README.md)。Windows 链接/运行未测。
-- TD-003：Release/Debug 与共享 GPU 回归通过，Viewer readbacks/uploads=0/0；1080p 约 59FPS，见[GPU 证据](docs/evidence/p2-broker/zero-copy.md)。长测与 G2-A 限定接受见[资源记录](docs/evidence/p2-broker/resource-stability.md)。
-- Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；详见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。Phase 1 基线与历史记录仍保留，不以新构建替代真实捕获/隔离验收。
-- GitHub 首轮 CI/Dependabot 与历史 Rust lint/test、headless 通过，见[CI 证据](docs/evidence/ci/README.md)。
+- G2-C/D：C++/Rust WinTrust publisher pin 通过平台签名正例和错 pin 拒绝；项目签名 enrollment 未完成。持久 IPC 与 crash/revoke/device-error 注入已实现，交互矩阵因空 pin 未运行；真实 DXGI device loss 未测。G2 及 60 FPS 目标未通过验收，详见 [证据](docs/evidence/p2-broker/g2c-g2d.md)。
+- Windows 本地 `verify.ps1 -SkipInteractive`：Release、Rust 8/8 与 headless CTest 7/7 通过；交互 Viewer、Broker/GPU 测试未运行。macOS portable-core 的 C++ fixture 1/1、Rust 策略 8/8、平台拒绝 1/1及两平台 Clippy 通过，Windows 原生证据见[核心证据](docs/evidence/portable-core/README.md)。
+- TD-003：Viewer readbacks/uploads=0/0；1080p/60 秒约 59 FPS，长测结果见[GPU 证据](docs/evidence/p2-broker/zero-copy.md)和[资源记录](docs/evidence/p2-broker/resource-stability.md)。
 
 ## 按需入口
 

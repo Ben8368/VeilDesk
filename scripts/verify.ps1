@@ -33,7 +33,13 @@ try {
     Invoke-CheckedTool $cmakePath @('--build', $buildPath, '--config', 'Release')
     if ($SkipService) { Write-Output 'SKIPPED: Rust service build, policy and console IPC verification.' }
     else {
-        & (Join-Path $PSScriptRoot 'verify-service.ps1')
+        $cacheFile = Join-Path $buildPath 'CMakeCache.txt'
+        $publisherPin = ''
+        if (Test-Path -LiteralPath $cacheFile) {
+            $pinEntry = Select-String -LiteralPath $cacheFile -Pattern '^VEILDESK_AUTHENTICODE_PUBLISHER_SHA256:STRING=(.*)$' | Select-Object -First 1
+            if ($pinEntry) { $publisherPin = $pinEntry.Matches[0].Groups[1].Value }
+        }
+        & (Join-Path $PSScriptRoot 'verify-service.ps1') -PublisherPin $publisherPin -TestImagePath $cmakePath
         if ($LASTEXITCODE -ne 0) { throw 'Service verification failed' }
     }
     $ctestPath = Join-Path (Split-Path $cmakePath -Parent) 'ctest.exe'

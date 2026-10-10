@@ -69,3 +69,11 @@ powershell -NoProfile -File scripts/benchmark-zero-copy.ps1 `
 - `cargo check --manifest-path service/Cargo.toml --locked --offline --target x86_64-pc-windows-msvc --all-targets` 通过；随后 `cargo clippy` 使用相同参数并追加 `-- -D warnings` 通过，包含库、程序和测试目标。
 - `cargo fmt --manifest-path service/Cargo.toml -- --check` 通过。临时 harness 直接引用原 `envelope.rs` / `policy.rs`，以 `rustc --edition=2021 --test` 在 macOS 运行既有测试，8/8 通过；不包含 Windows FFI / IPC。
 - `scripts/verify.ps1` 与 `scripts/governance-docs-check.ps1` 的规定命令均因缺少 `powershell` 退出 127，未执行。C++/MSVC、Windows 链接、签名运行、console IPC、SCM 与 GPU 场景仍未验证；此次检查不改变 G2-C/G2 Gate。
+## 2026-10-10 实现增量：publisher pin、持久授权 IPC 与矩阵扩展
+
+- Rust SecureService 在读取授权请求前，以 WinVerifyTrustEx 的 Authenticode 通用文件策略验证 pipe 客户端映像；从 primary signer 取得 SHA-256 并与 `VEILDESK_AUTHENTICODE_PUBLISHER_SHA256` 构建 pin 比较。空/格式错误 pin、无效签名、信任失败及不匹配均拒绝。服务保留已认证客户端进程 HANDLE，逐请求检查原进程仍存活；`scripts/verify.ps1` 将同一 CMake cache pin 传给 Cargo。独立正向/错 pin 实测以本机签名有效的 `C:\Program Files\CMake\bin\cmake.exe` 为样本，publisher pin `C45DB25FD47506BA520F5FB501A906C0CC2DCCFB00C8920E39496B6110B06521` 接受、全零错 pin 拒绝；这不是 VeilDesk 项目证书 enrollment。
+- Broker 在已认证的命名管道上复用连接并递增 request ID；Service 每条连接认证一次、每个消息独立限长处理，2 秒空闲断开，服务/客户端退出后需重新连接认证。当前只完成代码、Release 构建与 headless 状态验证，尚无有效签名 Broker 的持久连接实测。
+- `tests/broker-smoke.ps1` 已增加 `--crash-after-delivery`（用于检查 Broker 异常终止后子进程断连退出）、`--revoke-in-flight`（授权消费后、producer 产帧前撤销）及模拟 `DXGI_ERROR_DEVICE_REMOVED` / `DXGI_ERROR_DEVICE_RESET` 的失败消息（用于检查无资源交付）。这些交互用例未运行：当前 CMake cache publisher pin 为空，批准路径 fail-closed。
+- `powershell -NoProfile -File scripts/verify.ps1 -SkipInteractive` 已退出 0；Release C++ 构建、Rust 10/10 单测/Release/console smoke 与 headless CTest 7/7 通过。交互 Viewer、Broker smoke、GPU benchmark 被 `-SkipInteractive` 跳过，因此 60 FPS 目标尚未复测；G2-D 仍进行中。
+
+矩阵状态：Broker crash / 在途 revoke / device removed/reset 有了可执行注入用例但未运行；producer/consumer 正常异常退出与 revoke-after-2 保留既有有限证据；真实 driver device removal/reset、强制 producer/consumer 终止、有效项目签名身份下的 crash/revoke 交互证据仍缺。G2 未通过。

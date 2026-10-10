@@ -35,7 +35,7 @@ G1 是限定环境的 PoC 验收，不是所有目标 Windows 版本的发布认
 - 固定 GPU / adapter / 分辨率环境下记录同步、正确性、资源释放和性能；跨 adapter 未测就不支持承诺。
 - 阻断风险已解决、降级或由维护者记录有限接受；能稳定回到 Phase 1 验证路径。
 
-G2-A 于 2026-10-10 由维护者限定接受关闭：具名长测完成资源曲线与轮询 CPU；电功耗和高精度 timer 不可用时的回退性能未测并明确排除相关承诺。G2-A 关闭不代表 G2 通过。G2-B 的 Service 权威 envelope、真实 pipe 客户端身份绑定、Broker 对端检查、逐帧原子预算消费和限定端到端负向场景已实现并验证；G2-B 后有效 50 秒性能样本约 31.1 FPS，未达目标。G2-C 已实现 WinVerifyTrust 与构建时 SHA-256 publisher pin，错 pin/未签名/篡改拒绝；本机缺 VeilDesk 发布者证书，项目自身 enrollment 未验证。维护者已要求进入 G2-D，故障矩阵进行中；局部用例不表示 G2 通过。详见 [G2-C/D 与性能证据](evidence/p2-broker/g2c-g2d.md)。
+G2-A 于 2026-10-10 由维护者限定接受关闭：具名长测完成资源曲线与轮询 CPU；电功耗和高精度 timer 不可用时的回退性能未测并明确排除相关承诺。G2-A 关闭不代表 G2 通过。G2-B 的 Service 权威 envelope、真实 pipe 客户端身份绑定、Broker 对端检查、逐帧原子预算消费和限定端到端负向场景已实现并验证；G2-B 后有效 50 秒性能样本约 31.1 FPS，未达目标。G2-C 已实现 WinVerifyTrust 与构建时 SHA-256 publisher pin，Rust Service 对 Broker 增加同一 publisher pin 校验；本机缺 VeilDesk 发布者证书，项目正向 enrollment 未验证。授权 IPC 持久连接已实现但尚无性能复测。G2-D 故障注入矩阵已扩展，交互用例未运行且真实 device loss 未验证；局部实现/用例不表示 G2 通过。详见 [G2-C/D 与性能证据](evidence/p2-broker/g2c-g2d.md)。
 
 ## Phase 3：Rust SecureService
 

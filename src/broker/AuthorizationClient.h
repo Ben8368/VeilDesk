@@ -19,7 +19,9 @@ private:
     bool Exchange(std::uint16_t kind, const std::vector<std::uint8_t>& request,
         std::vector<std::uint8_t>& body);
     bool VerifyServer(HANDLE pipe);
+    bool Connect();
     std::wstring pipeName_;
+    Handle pipe_;
     bool allowConsolePeer_ = false;
     DWORD consolePeerPid_ = 0;
     std::uint32_t requestId_ = 0;

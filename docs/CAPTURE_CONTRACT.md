@@ -36,6 +36,8 @@ G2-B 设计与实现见 [ADR 0009](ADR/0009-authorization-envelope.md)：SecureS
 
 ## 后续生命周期
 
+G2-B 授权连接在一个 Broker 会话内持久复用；pipe ACL、连接建立时双向的进程/publisher 校验、Service 保留客户端进程对象及逐请求 request ID 共同约束授权请求。该连接加速实现尚无有效项目签名样本的端到端性能复测，连接句柄被同用户主动复制仍不在威胁保证内。
+
 Phase 3 收敛服务重启、策略持久化和 broker generation；服务不可用时的拒绝/恢复必须可解释。
 Phase 4 为 Guest / Host 输入、显示源、会话身份与外部传输制定独立协议，不能直接把本进程纹理当作虚拟机边界。
 每个协议变更都有版本、兼容策略与负向测试。Gate 验收见 [ROADMAP](ROADMAP.md)，工作包见 [DEVELOPMENT_BLUEPRINT](DEVELOPMENT_BLUEPRINT.md)。

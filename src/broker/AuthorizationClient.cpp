@@ -87,14 +87,20 @@ bool AuthorizationClient::VerifyServer(HANDLE pipe) {
     return true;
 }
 
+bool AuthorizationClient::Connect() {
+    if (pipe_) { return true; }
+    if (!WaitNamedPipeW(pipeName_.c_str(), 2000)) { Logger::Win32Error(L"WaitNamedPipeW(SecureService authorization)", GetLastError()); return false; }
+    pipe_.reset(CreateFileW(pipeName_.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    if (!pipe_) { Logger::Win32Error(L"CreateFileW(SecureService authorization)", GetLastError()); return false; }
+    if (!VerifyServer(pipe_.get())) { pipe_.reset(); return false; }
+    DWORD mode = PIPE_READMODE_MESSAGE;
+    if (!SetNamedPipeHandleState(pipe_.get(), &mode, nullptr, nullptr)) { Logger::Win32Error(L"SetNamedPipeHandleState(authorization)", GetLastError()); pipe_.reset(); return false; }
+    return true;
+}
+
 bool AuthorizationClient::Exchange(std::uint16_t kind, const std::vector<std::uint8_t>& payload, std::vector<std::uint8_t>& body) {
     if (payload.size() > 336 - headerSize) { Logger::Error(L"Authorization request exceeds protocol bound"); return false; }
-    if (!WaitNamedPipeW(pipeName_.c_str(), 2000)) { Logger::Win32Error(L"WaitNamedPipeW(SecureService authorization)", GetLastError()); return false; }
-    Handle pipe(CreateFileW(pipeName_.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
-    if (!pipe) { Logger::Win32Error(L"CreateFileW(SecureService authorization)", GetLastError()); return false; }
-    if (!VerifyServer(pipe.get())) { return false; }
-    DWORD mode = PIPE_READMODE_MESSAGE;
-    if (!SetNamedPipeHandleState(pipe.get(), &mode, nullptr, nullptr)) { Logger::Win32Error(L"SetNamedPipeHandleState(authorization)", GetLastError()); return false; }
+    if (!Connect()) { return false; }
     if (!requestId_) {
         if (BCryptGenRandom(nullptr, reinterpret_cast<PUCHAR>(&requestId_), sizeof(requestId_), BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0 || !requestId_) { Logger::Error(L"BCryptGenRandom authorization request id failed"); return false; }
     } else { ++requestId_; if (!requestId_) { ++requestId_; } }
@@ -102,22 +108,20 @@ bool AuthorizationClient::Exchange(std::uint16_t kind, const std::vector<std::ui
     Put32(request, magic); Put16(request, version); Put16(request, kind); Put32(request, static_cast<std::uint32_t>(headerSize + payload.size())); Put32(request, requestId_);
     request.insert(request.end(), payload.begin(), payload.end());
     DWORD written = 0;
-    if (!WriteFile(pipe.get(), request.data(), static_cast<DWORD>(request.size()), &written, nullptr) || written != request.size()) { Logger::Win32Error(L"WriteFile(authorization request)", GetLastError()); return false; }
+    if (!WriteFile(pipe_.get(), request.data(), static_cast<DWORD>(request.size()), &written, nullptr) || written != request.size()) { Logger::Win32Error(L"WriteFile(authorization request)", GetLastError()); pipe_.reset(); return false; }
     std::array<std::uint8_t, headerSize + 4 + authorizationEnvelopeWireSize> responseBuffer{};
     DWORD responseRead = 0;
-    if (!ReadFile(pipe.get(), responseBuffer.data(), static_cast<DWORD>(responseBuffer.size()), &responseRead, nullptr)) { Logger::Win32Error(L"ReadFile(authorization response)", GetLastError()); return false; }
+    if (!ReadFile(pipe_.get(), responseBuffer.data(), static_cast<DWORD>(responseBuffer.size()), &responseRead, nullptr)) { Logger::Win32Error(L"ReadFile(authorization response)", GetLastError()); pipe_.reset(); return false; }
     const std::span<const std::uint8_t> header(responseBuffer.data(), responseRead);
-    if (responseRead < headerSize) { Logger::Error(L"Authorization response truncated; denied"); return false; }
+    if (responseRead < headerSize) { Logger::Error(L"Authorization response truncated; denied"); pipe_.reset(); return false; }
     const auto responseSize = Get32(header.data() + 8);
     if (Get32(header.data()) != magic || header[4] != 1 || header[5] != 0 || Get32(header.data() + 12) != requestId_ ||
         responseSize < headerSize + 4 || responseSize > headerSize + 4 + authorizationEnvelopeWireSize ||
         responseSize != responseRead ||
         (static_cast<std::uint16_t>(header[6] | (header[7] << 8)) != static_cast<std::uint16_t>(kind | 0x8000))) {
-        Logger::Error(L"Authorization response protocol mismatch; denied"); return false;
+        Logger::Error(L"Authorization response protocol mismatch; denied"); pipe_.reset(); return false;
     }
     const std::span<const std::uint8_t> response(responseBuffer.data() + headerSize, responseSize - headerSize);
-    std::array<std::uint8_t, 16> receipt{}; receipt[0] = 'A'; receipt[1] = 'C'; receipt[2] = 'K';
-    if (!WriteFile(pipe.get(), receipt.data(), static_cast<DWORD>(receipt.size()), &written, nullptr) || written != receipt.size()) { Logger::Win32Error(L"WriteFile(authorization receipt)", GetLastError()); return false; }
     if (Get32(response.data()) != 0) { Logger::Error(L"SecureService denied authorization request; status=" + std::to_wstring(Get32(response.data()))); return false; }
     body.assign(response.begin() + 4, response.end());
     return true;

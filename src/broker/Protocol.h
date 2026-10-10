@@ -7,7 +7,9 @@ inline constexpr std::uint32_t magic = 0x5645494c;
 inline constexpr std::uint32_t version = 2;
 inline constexpr std::uint32_t width = 320, height = 180;
 enum class Kind : std::uint32_t { Frame = 1, Ack = 2, Stop = 3, Denied = 4 };
-enum class Status : std::uint32_t { Ok, Invalid, Expired, Revoked, Replay, Timeout, Failed };
+enum class Status : std::uint32_t {
+    Ok, Invalid, Expired, Revoked, Replay, Timeout, Failed, DeviceRemoved, DeviceReset
+};
 // Same-host x64 protocol; fixed fields, no pointers, strings or variable payloads.
 struct Message {
     std::uint32_t signature = magic;

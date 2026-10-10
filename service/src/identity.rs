@@ -3,6 +3,7 @@ use std::{mem::size_of, ptr::null_mut};
 use windows_sys::Win32::{
     Foundation::{
         CloseHandle, LocalFree, ERROR_INSUFFICIENT_BUFFER, FILETIME, HANDLE, INVALID_HANDLE_VALUE,
+        WAIT_TIMEOUT,
     },
     Security::{
         Authorization::ConvertSidToStringSidW,
@@ -16,7 +17,7 @@ use windows_sys::Win32::{
         Pipes::GetNamedPipeClientProcessId,
         Threading::{
             GetProcessTimes, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
-            PROCESS_QUERY_LIMITED_INFORMATION,
+            PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
         },
     },
 };
@@ -27,6 +28,17 @@ impl Drop for OwnedHandle {
         unsafe {
             CloseHandle(self.0);
         }
+    }
+}
+
+pub struct AuthenticatedClient {
+    pub subject: Subject,
+    process: OwnedHandle,
+}
+
+impl AuthenticatedClient {
+    pub fn is_alive(&self) -> bool {
+        unsafe { windows_sys::Win32::System::Threading::WaitForSingleObject(self.process.0, 0) == WAIT_TIMEOUT }
     }
 }
 
@@ -90,12 +102,18 @@ fn hash(bytes: &[u8]) -> std::io::Result<[u8; 32]> {
 pub unsafe fn pipe_client_subject(
     pipe: HANDLE,
     require_installed_broker: bool,
-) -> std::io::Result<Subject> {
+) -> std::io::Result<AuthenticatedClient> {
     let mut pid = 0_u32;
     if unsafe { GetNamedPipeClientProcessId(pipe, &mut pid) } == 0 || pid == 0 {
         return Err(std::io::Error::last_os_error());
     }
-    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    let process = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+            0,
+            pid,
+        )
+    };
     if process.is_null() || process == INVALID_HANDLE_VALUE {
         return Err(std::io::Error::last_os_error());
     }
@@ -211,12 +229,15 @@ pub unsafe fn pipe_client_subject(
     for word in image {
         image_bytes.extend_from_slice(&word.to_le_bytes());
     }
-    Ok(Subject {
-        pid,
-        session,
-        creation_time,
-        sid_hash: hash(&sid_bytes)?,
-        image_hash: hash(&image_bytes)?,
-        role: ROLE_BROKER,
+    Ok(AuthenticatedClient {
+        subject: Subject {
+            pid,
+            session,
+            creation_time,
+            sid_hash: hash(&sid_bytes)?,
+            image_hash: hash(&image_bytes)?,
+            role: ROLE_BROKER,
+        },
+        process,
     })
 }

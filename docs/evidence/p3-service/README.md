@@ -45,6 +45,12 @@ powershell -NoProfile -File scripts/verify.ps1
 
 ## 未覆盖与 G3 剩余
 
+## 2026-10-10 G2-C/D 实现增量
+
+- Service 现在在授权 pipe 连接建立时验证 Broker 映像的 Authenticode 链和 publisher SHA-256 构建 pin；`scripts/verify.ps1` 读取 CMake cache 并向 Cargo 提供相同 pin。缺 pin 时保持拒绝策略。Rust WinTrust 正向/错 pin 用本机签名有效的 CMake 可执行文件验证通过；没有 VeilDesk 证书，未对真实签名 CaptureBroker 执行项目 publisher enrollment。
+- 授权 Service 端现在按连接读取多个有界请求，不再每帧等待 ACK 回执并断开；客户端身份和 publisher 每条连接校验一次，保留原 Broker 进程 HANDLE，进程退出时断开；空闲 2 秒关闭连接。Rust 10/10 单测、Release 构建、console 诊断 smoke 和统一 headless 回归通过。没有授权连接性能样本，不能声称已回到 60 FPS。
+- 统一回归命令：`powershell -NoProfile -File scripts/verify.ps1 -SkipInteractive`，退出 0；Rust 10/10、Release、console smoke、headless CTest 7/7。交互式 Broker/GPU 认证路径因 publisher pin 为空未运行，SCM/LocalService 仍未验收。
+
 - 服务 IPC / Broker lease 控制在 console 原型已连通；正式 SCM/LocalService ACL、登录会话切换、跨账户拒绝和正式安装路径尚无实机证据。
 - Service 进程重启会作废所有内存 envelope；策略持久化、升级/迁移、Broker 心跳与崩溃恢复仍未实现。REVOKE 阻止后续授权消费，不会抹除已交付像素或回收消费者已取得的句柄。
 - 未实现策略持久化、签名/篡改恢复、迁移、主体注册、Broker 心跳与重启约束；所有授权状态默认仅内存，不在重启恢复旧 grant。

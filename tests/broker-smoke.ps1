@@ -38,6 +38,7 @@ try {
         $viewerLog -notmatch 'GPU copies: [1-9][0-9]*') { throw 'Viewer zero-copy instrumentation failed' }
     Write-Output 'Viewer ZeroCopyStats verified: readbacks=0 uploads=0 opens=8 GPU copies>0.'
     Run-Case 'revoked' @('--frames', '8', '--revoke-after', '2') 0 2
+    Run-Case 'revoke-in-flight' @('--frames', '8', '--revoke-in-flight') 0 1
     Run-Case 'expired' @('--expired') 0 0
     Run-Case 'forged-envelope' @('--forged-envelope') 0 0
     Run-Case 'downgraded-scope' @('--downgraded-scope') 1 0
@@ -50,6 +51,27 @@ try {
     Run-Case 'producer-exits' @('--producer-exit') 1 0
     Run-Case 'consumer-exits' @('--consumer-exit') 1 0
     Run-Case 'stalled' @('--stall') 1 0
+    Run-Case 'device-removed-injected' @('--simulate-device-removed') 1 0
+    Run-Case 'device-reset-injected' @('--simulate-device-reset') 1 0
+
+    $crashOutput = Join-Path $suite 'broker-crash'
+    $baselinePids = @(Get-CimInstance Win32_Process -Filter "Name='CaptureBroker.exe'" | ForEach-Object { [uint32]$_.ProcessId })
+    $crashArgs = @('--output', $crashOutput) + $authorizationOptions + @('--frames', '8', '--crash-after-delivery')
+    $crashed = Start-Process -FilePath $broker -ArgumentList $crashArgs -WorkingDirectory $suite `
+        -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $suite 'broker-crash.stdout.log') `
+        -RedirectStandardError (Join-Path $suite 'broker-crash.stderr.log')
+    if (-not $crashed.WaitForExit(15000)) { Stop-Process -Id $crashed.Id -Force; throw 'Crash-injection Broker did not terminate' }
+    if ($crashed.ExitCode -ne 57005) { throw "Broker crash-injection exit=$($crashed.ExitCode), expected 57005" }
+    if (@(Get-ChildItem -LiteralPath $crashOutput -Filter 'frame-*.png' -ErrorAction SilentlyContinue).Count -ne 1 -or
+        @(Get-ChildItem -LiteralPath $crashOutput -Filter 'pending-*.png' -ErrorAction SilentlyContinue).Count -ne 0) { throw 'Broker crash did not leave one complete frame and zero partial outputs' }
+    $childrenDeadline = [DateTime]::UtcNow.AddSeconds(8)
+    do {
+        $remainingChildren = @(Get-CimInstance Win32_Process -Filter "Name='CaptureBroker.exe'" |
+            Where-Object { $_.ProcessId -notin $baselinePids -and $_.ParentProcessId -eq $crashed.Id })
+        if ($remainingChildren.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $childrenDeadline)
+    if ($remainingChildren.Count -ne 0) { throw 'Broker-owned producer/consumer children did not exit after pipe closure' }
     & $broker --consumer --output $suite
     if ($LASTEXITCODE -eq 0) { throw 'Unattached consumer accepted' }
     & $broker --producer

@@ -5,8 +5,8 @@ use std::{
     time::{Duration, Instant},
 };
 use veil_secure_service::{
-    envelope::{AuthorizationEnvelope, Subject, SCOPE_RECORD, SCOPE_VIEW},
-    identity::pipe_client_subject,
+    envelope::{AuthorizationEnvelope, SCOPE_RECORD, SCOPE_VIEW},
+    identity::{pipe_client_subject, AuthenticatedClient},
     policy::Policy,
 };
 use windows_sys::Win32::{
@@ -238,13 +238,23 @@ impl Pipe {
                 unsafe { GetLastError() }
             };
             if connected || error == ERROR_PIPE_CONNECTED {
-                let subject = unsafe { pipe_client_subject(self.0, require_installed_broker) };
+                let subject = unsafe { pipe_client_subject(self.0, require_installed_broker) }
+                    .map_err(|error| error.to_string());
+                if subject.is_err() {
+                    eprintln!("authorization IPC client identity/publisher rejected");
+                    unsafe {
+                        DisconnectNamedPipe(self.0);
+                    }
+                    continue;
+                }
                 let mut request = [0_u8; AUTH_MAX_REQUEST];
-                let read_deadline = Instant::now() + Duration::from_secs(1);
-                let mut read = 0_u32;
-                let mut read_ok = false;
-                while !stop() && Instant::now() < read_deadline {
-                    read_ok = unsafe {
+                let mut idle_deadline = Instant::now() + Duration::from_secs(2);
+                loop {
+                    if stop() || Instant::now() >= end || Instant::now() >= idle_deadline {
+                        break;
+                    }
+                    let mut read = 0_u32;
+                    let read_ok = unsafe {
                         ReadFile(
                             self.0,
                             request.as_mut_ptr(),
@@ -253,67 +263,59 @@ impl Pipe {
                             null_mut(),
                         )
                     } != 0;
-                    if read_ok && read > 0 {
+                    if !read_ok {
+                        let read_error = unsafe { GetLastError() };
+                        if read_error == ERROR_NO_DATA {
+                            std::thread::sleep(Duration::from_millis(1));
+                            continue;
+                        }
                         break;
                     }
-                    let read_error = unsafe { GetLastError() };
-                    if !read_ok && read_error != ERROR_NO_DATA {
+                    if read == 0 {
                         break;
                     }
-                    std::thread::sleep(Duration::from_millis(5));
-                }
-                let now = unsafe { GetTickCount64() };
-                let (request_id, response_kind, body) = if read_ok && read > 0 {
-                    process_authorization_request(&request[..read as usize], subject, now, policy)
-                } else {
-                    (0, AUTH_ISSUE | 0x8000, 5_u32.to_le_bytes().to_vec())
-                };
-                let mut out = Vec::with_capacity(AUTH_RESPONSE);
-                put_u32(&mut out, AUTH_MAGIC);
-                put_u16(&mut out, AUTH_VERSION);
-                put_u16(&mut out, response_kind);
-                put_u32(&mut out, (AUTH_HEADER + body.len()) as u32);
-                put_u32(&mut out, request_id);
-                out.extend_from_slice(&body);
-                let mut written = 0_u32;
-                if unsafe {
-                    WriteFile(
-                        self.0,
-                        out.as_ptr(),
-                        out.len() as u32,
-                        &mut written,
-                        null_mut(),
-                    )
-                } == 0
-                    || written as usize != out.len()
-                {
-                    eprintln!(
-                        "authorization IPC response failed: {}",
-                        std::io::Error::last_os_error()
+                    idle_deadline = Instant::now() + Duration::from_secs(2);
+                    if !subject.as_ref().is_ok_and(|client| client.is_alive()) {
+                        eprintln!("authorization IPC client process exited; closing authenticated connection");
+                        break;
+                    }
+                    let now = unsafe { GetTickCount64() };
+                    let (request_id, response_kind, body) = process_authorization_request(
+                        &request[..read as usize],
+                        &subject,
+                        now,
+                        policy,
                     );
-                }
-                let deadline = Instant::now() + Duration::from_secs(1);
-                let mut receipt = [0_u8; 16];
-                while !stop() && Instant::now() < deadline {
-                    let mut count = 0_u32;
-                    let received = unsafe {
-                        ReadFile(
+                    let mut out = Vec::with_capacity(AUTH_RESPONSE);
+                    put_u32(&mut out, AUTH_MAGIC);
+                    put_u16(&mut out, AUTH_VERSION);
+                    put_u16(&mut out, response_kind);
+                    put_u32(&mut out, (AUTH_HEADER + body.len()) as u32);
+                    put_u32(&mut out, request_id);
+                    out.extend_from_slice(&body);
+                    let mut written = 0_u32;
+                    if unsafe {
+                        WriteFile(
                             self.0,
-                            receipt.as_mut_ptr(),
-                            receipt.len() as u32,
-                            &mut count,
+                            out.as_ptr(),
+                            out.len() as u32,
+                            &mut written,
                             null_mut(),
                         )
-                    } != 0;
-                    if received && count > 0 {
+                    } == 0
+                        || written as usize != out.len()
+                    {
+                        eprintln!(
+                            "authorization IPC response failed: {}",
+                            std::io::Error::last_os_error()
+                        );
                         break;
                     }
-                    if !received && unsafe { GetLastError() } != ERROR_NO_DATA {
-                        break;
-                    }
-                    std::thread::sleep(Duration::from_millis(10));
                 }
-                if unsafe { DisconnectNamedPipe(self.0) } == 0 {
+                if unsafe { DisconnectNamedPipe(self.0) } == 0
+                    && unsafe { GetLastError() }
+                        != windows_sys::Win32::Foundation::ERROR_PIPE_NOT_CONNECTED
+                {
                     return Err(std::io::Error::last_os_error());
                 }
             } else if error != ERROR_PIPE_LISTENING && error != ERROR_NO_DATA {
@@ -327,7 +329,7 @@ impl Pipe {
 
 fn process_authorization_request(
     request: &[u8],
-    subject: std::io::Result<Subject>,
+    subject: &Result<AuthenticatedClient, String>,
     now: u64,
     policy: &Mutex<Policy>,
 ) -> (u32, u16, Vec<u8>) {
@@ -351,7 +353,7 @@ fn process_authorization_request(
         {
             return Err("protocol");
         }
-        let caller = subject.map_err(|_| "identity")?;
+        let caller = subject.as_ref().map_err(|_| "identity")?.subject;
         let mut state = policy.lock().map_err(|_| "state")?;
         match kind {
             AUTH_ISSUE if request.len() == AUTH_HEADER + 16 => {
