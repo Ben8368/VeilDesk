@@ -6,6 +6,7 @@
 #include "common/Logger.h"
 #include <filesystem>
 #include <iostream>
+#include <memory>
 
 using namespace veil;
 using namespace veil::broker;
@@ -153,6 +154,7 @@ int wmain(int argc, wchar_t** argv) {
     Logger::Initialize(L"Broker-" + std::to_wstring(GetCurrentProcessId()) + L".log");
     std::filesystem::path destination;
     unsigned frames = 8, revokeAfter = 0;
+    BenchmarkConfig benchmarkConfig; bool benchmarkOptions = false;
     bool producerExit = false, consumerExit = false, exitOnFrame = false;
     bool benchmark = false, child = false, producerMode = false, stall = false, tests = false, viewer = false, expired = false, deny = false;
     HANDLE input = nullptr, output = nullptr;
@@ -170,6 +172,18 @@ int wmain(int argc, wchar_t** argv) {
             else if (arg == L"--viewer") { viewer = true; }
             else if (arg == L"--expired") { expired = true; }
             else if (arg == L"--deny") { deny = true; }
+            else if ((arg == L"--duration-seconds" || arg == L"--width" || arg == L"--height" ||
+                arg == L"--fps" || arg == L"--sample-seconds") && i + 1 < argc) {
+                const std::wstring value(argv[++i]); std::size_t consumed = 0;
+                const auto number = std::stoul(value, &consumed);
+                if (value.empty() || value.front() == L'-' || consumed != value.size() || number > 7200) { return 1; }
+                benchmarkOptions = true;
+                if (arg == L"--duration-seconds") { benchmarkConfig.durationSeconds = number; }
+                else if (arg == L"--width") { benchmarkConfig.pixelWidth = number; }
+                else if (arg == L"--height") { benchmarkConfig.pixelHeight = number; }
+                else if (arg == L"--fps") { benchmarkConfig.fps = number; }
+                else { benchmarkConfig.sampleSeconds = number; }
+            }
             else if (arg == L"--output" && i + 1 < argc) { destination = argv[++i]; }
             else if ((arg == L"--frames" || arg == L"--revoke-after") && i + 1 < argc) {
                 const std::wstring value(argv[++i]); std::size_t consumed = 0;
@@ -181,7 +195,8 @@ int wmain(int argc, wchar_t** argv) {
             } else { Logger::Error(L"Unknown/incomplete option: " + arg); return 1; }
         }
         if (benchmark && (child || producerMode || stall || expired || deny || revokeAfter || frames != 8)) { return 1; }
-        if (benchmark) { frames = 3600; }
+        if ((benchmarkOptions && !benchmark) || !benchmarkConfig.Valid()) { Logger::Error(L"Invalid benchmark configuration"); return 1; }
+        if (benchmark) { frames = benchmarkConfig.Slots(); }
         if (tests) { return ProtocolTests() ? 0 : 1; }
         if (producerMode) {
             if (child || !destination.empty()) { return 1; }
@@ -199,20 +214,23 @@ int wmain(int argc, wchar_t** argv) {
         if (!producer.Start(executable, producerExit ? L"--producer --exit-on-frame" : L"--producer", ChildRole::Producer)) { return 1; }
         if (!benchmark && !recorder.Start(executable, L"--consumer --output \"" + destination.wstring() + L"\"" + (stall ? L" --stall" : L"") + (consumerExit ? L" --exit-on-frame" : L""), ChildRole::Record)) { return 1; }
         if (viewer && !display.Start((std::filesystem::path(executable).parent_path() / L"SecureViewer.exe").wstring(),
-            (benchmark ? L"--shared-source --run-seconds 90 --benchmark-display" : L"--shared-source --run-seconds 15 --capture-ready"), ChildRole::View)) { return 1; }
-        Lease lease{1, GetTickCount64() + (expired ? 0 : (benchmark ? 90000 : 30000)), 0, !deny, false};
+            (benchmark ? L"--shared-source --run-seconds " + std::to_wstring(benchmarkConfig.durationSeconds + 30) +
+                L" --benchmark-display --benchmark-size " + std::to_wstring(benchmarkConfig.pixelWidth) + L" " + std::to_wstring(benchmarkConfig.pixelHeight) : L"--shared-source --run-seconds 15 --capture-ready"), ChildRole::View)) { return 1; }
+        Lease lease{1, GetTickCount64() + (expired ? 0 : (benchmark ? (benchmarkConfig.durationSeconds + 30ULL) * 1000 : 30000)), 0, !deny, false};
         if (!CreateSessionGeneration(lease.generation)) { return 1; }
-        if (benchmark) { lease.pixelWidth = 1920; lease.pixelHeight = 1080; }
+        if (benchmark) { lease.pixelWidth = benchmarkConfig.pixelWidth; lease.pixelHeight = benchmarkConfig.pixelHeight; }
         SharedFrameConsumer brokerGpu;
         if (!brokerGpu.Initialize()) { return 1; }
-        Benchmark metrics; unsigned slot = 0;
+        std::unique_ptr<Benchmark> metrics;
+        if (benchmark) { metrics = std::make_unique<Benchmark>(benchmarkConfig, destination); }
+        unsigned slot = 0;
         unsigned delivered = 0;
         const auto started = GetTickCount64();
         for (unsigned frame = 1; frame <= frames; ++frame) {
             if (benchmark) {
-                slot = (std::max)(slot, metrics.ElapsedSlots());
-                if (!metrics.Pace(slot++)) { break; }
-                if (!metrics.Sample(producer.process.get(), display.process.get())) { return 1; }
+                slot = (std::max)(slot, metrics->ElapsedSlots());
+                if (!metrics->Pace(slot++)) { break; }
+                if (!metrics->Sample(producer.process.get(), display.process.get())) { return 1; }
             }
             const auto deliveryStart = Benchmark::Clock::now();
             Message message; message.frame = frame; message.deadline = lease.deadline; message.generation = lease.generation;
@@ -225,7 +243,7 @@ int wmain(int argc, wchar_t** argv) {
             if (!Receive(producer.output.get(), produced, 2000) || produced.frame != message.frame ||
                 produced.kind != Kind::Frame || produced.status != Status::Ok || produced.generation != message.generation ||
                 produced.deadline != message.deadline || produced.pixelWidth != message.pixelWidth || produced.pixelHeight != message.pixelHeight || !produced.handle) { return 1; }
-            if (benchmark) { metrics.Record(Benchmark::Stage::Produce, deliveryStart); }
+            if (benchmark) { metrics->Produced(); metrics->Record(Benchmark::Stage::Produce, deliveryStart); }
             const auto inspectStart = Benchmark::Clock::now();
             HANDLE local = nullptr;
             if (!DuplicateHandle(producer.process.get(), reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(produced.handle)),
@@ -242,19 +260,19 @@ int wmain(int argc, wchar_t** argv) {
             Message inspected = message; inspected.handle = reinterpret_cast<std::uintptr_t>(inspection);
             SharedTexture snapshot;
             if (!brokerGpu.OpenFrame(inspected, snapshot) || !snapshot.Close()) { return 1; }
-            if (benchmark) { metrics.Record(Benchmark::Stage::Inspect, inspectStart); }
+            if (benchmark) { metrics->Record(Benchmark::Stage::Inspect, inspectStart); }
             const auto viewStart = Benchmark::Clock::now();
             if ((!benchmark && !Deliver(recorder, shared.get(), message)) ||
                 (viewer && !Deliver(display, shared.get(), message))) { return 1; }
-            if (benchmark) { metrics.Record(Benchmark::Stage::View, viewStart); }
+            if (benchmark) { metrics->Record(Benchmark::Stage::View, viewStart); }
             Message ack = message; ack.kind = Kind::Ack;
             if (!Send(producer.input.get(), ack)) { return 1; }
             lease.lastFrame = frame; ++delivered;
-            if (benchmark) { metrics.Delivered(deliveryStart); }
+            if (benchmark) { metrics->Delivered(deliveryStart); }
         }
         if (benchmark) {
-            metrics.Pace(3600);
-            if (!metrics.Sample(producer.process.get(), display.process.get()) || !metrics.Save(destination, delivered, AdapterText(brokerGpu.Adapter()))) { return 1; }
+            metrics->Pace(benchmarkConfig.Slots());
+            if (!metrics->Sample(producer.process.get(), display.process.get(), true) || !metrics->Save(AdapterText(brokerGpu.Adapter()))) { return 1; }
         }
         Message stop; stop.kind = Kind::Stop; stop.generation = lease.generation;
         if (!Send(producer.input.get(), stop) || (!benchmark && !Send(recorder.input.get(), stop)) || (viewer && !Send(display.input.get(), stop))) { return 1; }

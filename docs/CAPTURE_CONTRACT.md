@@ -13,7 +13,7 @@ API 成功只说明复制/编码完成，不说明 Viewer 内容存在于输出�
 只允许自有启动树中的进程，以私有继承管道作为能力；父进程保留实际 process HANDLE，挂起启动后读取 PID/creation time/SID/session/image 并检查角色，交付前重新核对同一对象，而非重新按 PID 打开；publisher/signature NotVerified。
 常规帧为 320×180 BGRA8，明确 LUID 的同一硬件 adapter，跨 adapter 拒绝且无 CPU fallback；keyed mutex 为 0→1，读者 AcquireSync(1) 后 ReleaseSync(1)，超时/abandoned 不能按 SUCCEEDED 算成功。
 ACK 必须匹配帧、代际和期限，不带句柄；对端中断/超时使会话失败，关闭通道并清理自己启动的进程。
-常规 lease 最多 30 秒、输出最多 120 帧；显式 `--benchmark` 仅自有 GPU Viewer 测试，预算 90 秒/3600 帧，采样时长 60 秒、不输出 PNG，不开放外部消费者；会话使用随机非零 generation，撤销 bump 并关闭旧会话，到期/撤销后不交付新资源。每帧纹理不再改写，旧句柄可以继续读取旧快照，不能召回已保存像素。
+常规 lease 最多 30 秒、输出最多 120 帧；显式 `--benchmark` 仅自有 GPU Viewer 测试，duration 1..7200 秒、fps 1..240、总帧槽最多 1,728,000，Viewer/lease 预算 duration+30 秒；默认 60 秒，长测脚本默认 1800 秒，每周期记录分进程 CPU/GPU 资源，不输出 PNG，不开放外部消费者；会话使用随机非零 generation，撤销 bump 并关闭旧会话，到期/撤销后不交付新资源。每帧纹理不再改写，旧句柄可以继续读取旧快照，不能召回已保存像素。
 PNG 写入显式新目录；临时文件编码完成才改名，拒绝覆盖既有文件，失败清理未完成输出并保留已完成帧。
 契约原型与证据见 [ADR 0004](ADR/0004-private-broker-prototype.md) / [Broker 证据](evidence/p2-broker/README.md)。以下是扩大到通用客户端仍必须满足的验收语义：
 

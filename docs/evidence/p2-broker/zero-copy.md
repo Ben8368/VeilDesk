@@ -70,3 +70,5 @@ G2 未通过：身份/enrollment、统一服务授权事实源、在途撤销和
 历史原型结果保留在 [Broker 证据](README.md)，其 CPU 显示描述仅适用于历史版本。
 
 后续 G2 身份/代际增量与剩余缺口见 [enrollment 证据](enrollment.md)，不将该增量当作性能复验。
+
+G2-A 长测方法、判断标准与本轮资源记录见 [resource stability](resource-stability.md)；进行中的运行不构成长期稳定性证据。

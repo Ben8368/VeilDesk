@@ -1,14 +1,14 @@
 # 当前状态
 
 > **最后确认：** 2026-10-10
-> **阶段：** Phase 2A / TD-003 GPU 显示通路优先；G2/G3/G4 未通过。
+> **阶段：** Phase 2 / G2-A 长时资源稳定性；G2/G3/G4 未通过。
 > **当前范围：** 自有内容源、受控消费者与后续阶段基础设施，尚非完整 Secure Workspace。
 
 ## 当前事实
 
 - SecureViewer 与 CaptureTest 已实现；C++20 / Win32 / D3D11，普通 GDI 捕获和 WIC PNG 编码。
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
-- 维护者本轮要求先完成 TD-003，再收敛 G2；G2/G3 通过前不继续 Phase 3/4，系统变更仍独立授权。
+- 维护者本轮授权按 G2-A→B→C→D 收敛安全边界；G2 PASS 后才进入 G3，禁止继续 Phase 4，系统变更仍独立授权。
 - 独立 producer / Broker / Viewer / PNG 消费者原型已实现；限定结果见 [Broker 证据](docs/evidence/p2-broker/README.md)。
 - Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；见 [服务证据](docs/evidence/p3-service/README.md)。
 - Workspace 探针和 VM 生命周期脚本已实现；Guest 显示/输入尚未实现，见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
@@ -17,7 +17,7 @@
 
 ## 近期优先级
 
-1. TD-005 吞吐已定位为计时器取整并修复（约 59FPS，未引入 pool）；剩余长时资源/CPU 证据见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
+1. G2-A：真实 1080p/60 FPS target/1800 秒资源测试进行中；[长测方法与记录](docs/evidence/p2-broker/resource-stability.md)，未引入 pool、未宣称资源 Gate 通过。
 2. 按 [Blueprint G2 剩余收敛](docs/DEVELOPMENT_BLUEPRINT.md) G2-A→D：长时资源、统一 Authorization Envelope、Authenticode enrollment、在途撤销/故障矩阵；[自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现。
 3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 

@@ -13,6 +13,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     veil::Logger::Initialize(L"SecureViewer.log");
     veil::LogSystemInfo();
     unsigned int runSeconds = 0;
+    unsigned benchmarkWidth = 1920, benchmarkHeight = 1080;
     bool smokeTest = false;
     bool captureReady = false;
     bool protection = true;
@@ -27,6 +28,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     for (int i = 1; i < count; ++i) {
         if (std::wstring(args[i]) == L"--smoke-test") { runSeconds = 5; smokeTest = true; }
         else if (std::wstring(args[i]) == L"--benchmark-display") { benchmarkDisplay = true; }
+        else if (std::wstring(args[i]) == L"--benchmark-size" && i + 2 < count) {
+            wchar_t* end = nullptr;
+            const auto pixelWidth = std::wcstoul(args[++i], &end, 10);
+            if (!end || *end || pixelWidth < 216 || pixelWidth > 4096) { return 1; }
+            const auto pixelHeight = std::wcstoul(args[++i], &end, 10);
+            if (!end || *end || pixelHeight < 36 || pixelHeight > 4096) { return 1; }
+            benchmarkWidth = pixelWidth; benchmarkHeight = pixelHeight;
+        }
         else if (std::wstring(args[i]) == L"--shared-source") { sharedSource = true; }
         else if (std::wstring(args[i]) == L"--channel" && i + 2 < count) {
             try {
@@ -39,14 +48,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         else if (std::wstring(args[i]) == L"--simulate-display-only-failure") { simulateDisplayOnlyFailure = true; }
         else if (std::wstring(args[i]) == L"--capture-ready") { captureReady = true; }
         else if (std::wstring(args[i]) == L"--help") {
-            veil::Logger::Info(L"SecureViewer [--smoke-test] [--run-seconds 1..3600] [--capture-ready] [--no-protection] [--disable-display-only] [--simulate-display-only-failure]; shared-source mode is started by CaptureBroker");
+            veil::Logger::Info(L"SecureViewer [--smoke-test] [--run-seconds 1..7230] [--capture-ready] [--no-protection] [--disable-display-only] [--simulate-display-only-failure]; shared-source mode is started by CaptureBroker");
             return 0;
         }
         else if (std::wstring(args[i]) == L"--run-seconds" && i + 1 < count) {
             wchar_t* end = nullptr;
             const auto seconds = std::wcstoul(args[++i], &end, 10);
-            if (!end || *end != L'\0' || seconds == 0 || seconds > 3600) {
-                veil::Logger::Error(L"--run-seconds must be 1..3600"); return 1;
+            if (!end || *end != L'\0' || seconds == 0 || seconds > 7230) {
+                veil::Logger::Error(L"--run-seconds must be 1..7230"); return 1;
             }
             runSeconds = static_cast<unsigned int>(seconds);
         } else { veil::Logger::Error(L"Unknown or incomplete option: " + std::wstring(args[i])); return 1; }
@@ -90,7 +99,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     }
     if (benchmarkDisplay) {
         if (!sharedSource) { return 1; }
-        RECT rect{0, 0, 1920, 1080};
+        RECT rect{0, 0, static_cast<LONG>(benchmarkWidth), static_cast<LONG>(benchmarkHeight)};
         if (!AdjustWindowRectExForDpi(&rect, static_cast<DWORD>(GetWindowLongPtrW(window.Handle(), GWL_STYLE)),
             FALSE, static_cast<DWORD>(GetWindowLongPtrW(window.Handle(), GWL_EXSTYLE)), window.Dpi()) ||
             !SetWindowPos(window.Handle(), HWND_TOPMOST, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOACTIVATE)) {
