@@ -24,9 +24,17 @@ function Run-Case([string]$Name, [string[]]$Options, [int]$ExpectedExit, [int]$E
 Push-Location $suite
 try {
     Run-Case 'approved' @('--frames', '8', '--viewer') 0 8
+    $viewerLog = [IO.File]::ReadAllText((Join-Path $suite 'SecureViewer.log'))
+    if ($viewerLog -notmatch 'CPU frame readbacks: 0(?:\r?\n)' -or
+        $viewerLog -notmatch 'CPU frame uploads: 0(?:\r?\n)' -or
+        $viewerLog -notmatch 'Shared textures opened: 8(?:\r?\n)' -or
+        $viewerLog -notmatch 'GPU copies: [1-9][0-9]*') { throw 'Viewer zero-copy instrumentation failed' }
+    Write-Output 'Viewer ZeroCopyStats verified: readbacks=0 uploads=0 opens=8 GPU copies>0.'
     Run-Case 'revoked' @('--frames', '8', '--revoke-after', '2') 0 2
     Run-Case 'expired' @('--expired') 0 0
     Run-Case 'denied' @('--deny') 0 0
+    Run-Case 'producer-exits' @('--producer-exit') 1 0
+    Run-Case 'consumer-exits' @('--consumer-exit') 1 0
     Run-Case 'stalled' @('--stall') 1 0
     & $broker --consumer --output $suite
     if ($LASTEXITCODE -eq 0) { throw 'Unattached consumer accepted' }

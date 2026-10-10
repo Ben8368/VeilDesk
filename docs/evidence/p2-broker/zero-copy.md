@@ -9,9 +9,46 @@
 实际 approved Viewer 打开 8 帧，ZeroCopyStats 为 CPU readbacks=0、CPU uploads=0、opens=8、GPU copies=40（包含重绘）；WDA 已读回确认，DISPLAY_ONLY 创建接受。
 Producer shader 输出经独立 readback 逐像素匹配诊断图案；Recorder PNG 独立解码匹配 frame ID。旧快照不变、非继承 HANDLE、真实 keyed mutex 超时通过。
 
-## 限制
+## 扩展测试
 
-自动 instrumentation 断言、扩展 descriptor/adapter 负向矩阵和 1080p/60FPS/60 秒性能基线仍待补充；本记录不提前关闭 TD-003 或 TD-005。
-零拷贝指零 CPU 帧往返，仍有 GPU snapshot/presentation copy。正常显示原生裁切，不承诺 scaling；跨 adapter Unsupported。
-OBS/WGC/DD、其他 GPU/OS、device loss、恶意主体/句柄转移和真实 PID 复用 NOT TESTED。G2/G3/G4 未通过；未安装服务或改变虚拟化/安全策略。
+源码基于 `09d509e` 后的工作树；Release/Debug 扩展构建无警告。最终 `scripts/verify.ps1` 退出 0：Release CTest 7/7、Rust 4/4、console IPC；Debug 全部 CTest 7/7。
+
+| Expected | Actual |
+| --- | --- |
+| 正常 Viewer 不做 CPU 帧往返 | BrokerSmoke 读取真实退出日志断言 readbacks=0、uploads=0、opens=8、copies>0；源码结构检查无 Map/staging/CPU 帧 API，且未链接 readback 库 |
+| Renderer GPU copy 正确且拒绝异 device | ViewerTextureProbe 在测试二进制内 readback 本地 snapshot，320/640×180 全像素匹配；源尺寸变化、resize、Present 通过；正常显示计数 0/0，测试独立计数 readbacks=2 |
+| 不可信资源被拒绝 | 11 项 descriptor 单元负向输入及实际 321×180 texture 与 320×180 metadata 不符，被拒绝 |
+| Adapter 边界 | 元数据 LUID 篡改拒绝；实际 Intel UHD 630（30.0.100.9805，LUID 00000000:000167d4）device 拒绝 NVIDIA 来源（LUID 00000000:00015667） |
+| 旧 handle 无未来帧 | 产生 frame 2 后，frame 1→2→1 的全像素均匹配对应快照 |
+| 超时不假成功/无限阻塞 | 第二 device 争用已锁定 frame，20ms 有限等待后拒绝；真实 WAIT_TIMEOUT |
+| 子进程退出使会话失败 | producer 在首帧前退出、consumer 收到首帧后退出，Broker 非零退出、0 PNG，拥有的进程对象清理 |
+| 授权与畸形协议 | 未授权、过期、撤销、重放、错 generation、错版本/尺寸，以及 64 个 magic 变体、未知 kind/status 被拒绝；授权状态测试不等于完整 OS 主体安全证明 |
+
+## 1080p 性能基线
+
+命令：`CaptureBroker --benchmark --output <新目录>`；GPU 图案→NT handle→独立 Broker 校验→独立 Viewer，1920×1080 源和 back buffer，目标 60FPS，单帧在途，持续 60 秒；benchmark 不运行 PNG Recorder。
+三进程 aggregate private bytes / HANDLE 每秒采样；CSV/JSON/日志只在忽略目录。延迟从 Broker 帧请求到 Viewer Present 后 ACK，不是物理扫描延迟。统计 delivered 只在真实 Present 成功后计数；3600 目标槽位中未交付的计作 dropped。
+
+| 指标 | 首轮 | 去除空闲重复 Present 后 |
+| --- | --- | --- |
+| 时长 | 60.0535s | 60.0272s |
+| produced / displayed | 1071 / 1071 | 1117 / 1117 |
+| dropped 目标槽位 | 2529 | 2483 |
+| average / p95 delivery | 56.0647 / 72.0738ms | 53.7334 / 61.8244ms |
+| 首/尾 private bytes | 131006464 / 170627072 | 132046848 / 173015040 |
+| 10 秒后线性趋势 | +33743 bytes/s | +65799.8 bytes/s |
+| 首/尾 HANDLE | 983 / 1256 | 975 / 1259 |
+| Viewer readbacks / uploads | 0 / 0 | 0 / 0 |
+
+Expected：零 CPU 帧往返、有界资源且无持续增长、接近 60FPS。Actual：零 CPU 往返通过，吞吐仅约 18FPS；初始化后 HANDLE 基本稳定，第二轮最后约 5 秒 private bytes 均为 173015040，仍有热身后增长。**资源长期稳定性与性能 Gate 未通过**，不能宣称无泄漏。
+每进程 device 只在初始化创建；源码与初始化日志均无每帧 device 重建。没有观察到每帧 HANDLE 线性增长，但这不证明 GPU/driver 零泄漏；private bytes 不包括全部 GPU 分配。
+决策：保留 TD-005，尚未定位 polling/同步/资源创建各自成本，暂不引入 pool。重复执行入口为 `scripts/benchmark-zero-copy.ps1`，同时断言零拷贝与尺寸/时长/帧统计；性能结果需人工评审。
+
+可重复脚本第三轮（退出 0）：60.008s，produced/displayed=1148/1148、dropped=2452，average=52.2657ms、p95=60.5865ms；readbacks/uploads=0/0，private bytes=119476224→172818432，热身后趋势 +73899.5 bytes/s，HANDLE=919→1239。脚本的 1080p、60 秒、帧统计和零拷贝断言均通过；性能/资源 Gate 仍未通过。
+
+## 限制与 Gate
+
+TD-003 的 CPU 显示往返已经消除并实测；Phase 1 测试绘制保持回归。资源池、scaling、device loss 恢复、真实 abandoned mutex、服务强制授权 NOT IMPLEMENTED/NOT TESTED，依对象而定。
+OBS/WGC/DD/PrintScreen/会议共享、其他 OS/GPU、恶意主体/句柄转移和真实 PID 复用 NOT TESTED。零拷贝不是捕获保护的新增安全保证。
+G2 未通过：身份/enrollment、统一服务授权事实源、在途撤销和 Broker 故障矩阵、共享 Viewer 捕获对照及性能/资源证据仍不完整。G3/G4 不推进。
 历史原型结果保留在 [Broker 证据](README.md)，其 CPU 显示描述仅适用于历史版本。

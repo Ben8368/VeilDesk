@@ -269,3 +269,5 @@ CaptureEngine 管理普通 GDI 捕获及 WIC PNG 编码，COM 用 ComPtr，DC / 
 
 后续顺序、Gate 与工作包分别以 [ROADMAP](docs/ROADMAP.md)、[DEVELOPMENT_BLUEPRINT](docs/DEVELOPMENT_BLUEPRINT.md) 为准。
 本轮维护者已授权 Phase 2–4 源码推进；当前能力、剩余门禁与部署范围见 Context 和具名证据。开发授权不代表 G2/G3/G4 通过。
+
+GPU Viewer 验证与性能限制见 [TD-003 证据](docs/evidence/p2-broker/zero-copy.md)。交互桌面运行 `powershell -NoProfile -File scripts/benchmark-zero-copy.ps1` 执行 1080p、目标 60FPS、60 秒基线；结果留在忽略目录，不等于 G2 或捕获保护验收。

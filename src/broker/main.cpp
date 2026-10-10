@@ -1,4 +1,5 @@
 #include "broker/Channel.h"
+#include "broker/Benchmark.h"
 #include "broker/SharedFrame.h"
 #include "broker/FrameReadback.h"
 #include "capture/CaptureEngine.h"
@@ -9,7 +10,7 @@
 using namespace veil;
 using namespace veil::broker;
 namespace {
-int Producer(HANDLE input, HANDLE output) {
+int Producer(HANDLE input, HANDLE output, bool exitOnFrame) {
     Handle read(input), write(output);
     if (GetFileType(read.get()) != FILE_TYPE_PIPE || GetFileType(write.get()) != FILE_TYPE_PIPE) {
         Logger::Error(L"Denied: producer requires private inherited pipe capabilities"); return 1;
@@ -25,10 +26,12 @@ int Producer(HANDLE input, HANDLE output) {
         Message request;
         if (!Receive(read.get(), request, 5000)) { return 1; }
         if (request.kind == Kind::Stop) { return 0; }
-        if (!lease.granted) { lease.granted = true; lease.deadline = request.deadline; lease.generation = request.generation; }
+        if (!lease.granted) { lease.granted = true; lease.deadline = request.deadline; lease.generation = request.generation;
+            lease.pixelWidth = request.pixelWidth; lease.pixelHeight = request.pixelHeight; }
         if (lease.Check(request, GetTickCount64()) != Status::Ok || request.handle != 0) { return 1; }
+        if (exitOnFrame) { Logger::Error(L"TEST: producer exits before delivering frame"); return 1; }
         Handle frame;
-        if (!gpu.Produce(request.frame, frame)) { return 1; }
+        if (!gpu.Produce(request.frame, frame, request.pixelWidth, request.pixelHeight)) { return 1; }
         request.handle = reinterpret_cast<std::uintptr_t>(frame.get());
         request.adapterLow = gpu.Adapter().LowPart; request.adapterHigh = gpu.Adapter().HighPart;
         if (!Send(write.get(), request)) { return 1; }
@@ -38,7 +41,7 @@ int Producer(HANDLE input, HANDLE output) {
         lease.lastFrame = request.frame;
     }
 }
-int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destination, bool stall) {
+int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destination, bool stall, bool exitOnFrame) {
     Handle read(input), write(output);
     if (GetFileType(read.get()) != FILE_TYPE_PIPE || GetFileType(write.get()) != FILE_TYPE_PIPE) {
         Logger::Error(L"Denied: consumer requires private inherited pipe capabilities"); return 1;
@@ -57,6 +60,7 @@ int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destinati
     Lease lease;
     while (Receive(read.get(), message, 5000)) {
         if (message.kind == Kind::Stop || message.kind == Kind::Denied) { return 0; }
+        if (exitOnFrame) { Logger::Error(L"TEST: consumer exits after receiving frame"); return 1; }
         if (stall) { Sleep(3500); return 1; }
         if (!lease.granted) {
             lease.granted = true; lease.deadline = message.deadline; lease.generation = message.generation;
@@ -125,7 +129,19 @@ bool ProtocolTests() {
     if (lease.Check(message, 2) != Status::Invalid) { return false; }
     --message.generation; ++message.protocol;
     if (lease.Check(message, 2) != Status::Invalid) { return false; }
-    --message.protocol; message.pixelWidth = 0;
+    --message.protocol;
+    for (unsigned i = 0; i < 64; ++i) {
+        auto malformed = message;
+        malformed.signature ^= (i + 1);
+        if (lease.Check(malformed, 2) != Status::Invalid) { return false; }
+    }
+    for (auto invalidKind : {Kind::Ack, Kind::Stop, Kind::Denied, static_cast<Kind>(999)}) {
+        auto malformed = message; malformed.kind = invalidKind;
+        if (lease.Check(malformed, 2) != Status::Invalid) { return false; }
+    }
+    auto invalidStatus = message; invalidStatus.status = Status::Failed;
+    if (lease.Check(invalidStatus, 2) != Status::Invalid) { return false; }
+    message.pixelWidth = 0;
     if (lease.Check(message, 2) != Status::Invalid) { return false; }
     Logger::Info(L"Protocol negative cases passed (state tests, not OS identity evidence)"); return true;
 }
@@ -134,13 +150,18 @@ int wmain(int argc, wchar_t** argv) {
     Logger::Initialize(L"Broker-" + std::to_wstring(GetCurrentProcessId()) + L".log");
     std::filesystem::path destination;
     unsigned frames = 8, revokeAfter = 0;
-    bool child = false, producerMode = false, stall = false, tests = false, viewer = false, expired = false, deny = false;
+    bool producerExit = false, consumerExit = false, exitOnFrame = false;
+    bool benchmark = false, child = false, producerMode = false, stall = false, tests = false, viewer = false, expired = false, deny = false;
     HANDLE input = nullptr, output = nullptr;
     try {
         for (int i = 1; i < argc; ++i) {
             const std::wstring arg(argv[i]);
-            if (arg == L"--consumer") { child = true; }
+            if (arg == L"--benchmark") { benchmark = true; viewer = true; }
+            else if (arg == L"--consumer") { child = true; }
             else if (arg == L"--producer") { producerMode = true; }
+            else if (arg == L"--producer-exit") { producerExit = true; }
+            else if (arg == L"--consumer-exit") { consumerExit = true; }
+            else if (arg == L"--exit-on-frame") { exitOnFrame = true; }
             else if (arg == L"--stall") { stall = true; }
             else if (arg == L"--protocol-tests") { tests = true; }
             else if (arg == L"--viewer") { viewer = true; }
@@ -156,13 +177,15 @@ int wmain(int argc, wchar_t** argv) {
                 input = reinterpret_cast<HANDLE>(std::stoull(argv[++i])); output = reinterpret_cast<HANDLE>(std::stoull(argv[++i]));
             } else { Logger::Error(L"Unknown/incomplete option: " + arg); return 1; }
         }
+        if (benchmark && (child || producerMode || stall || expired || deny || revokeAfter || frames != 8)) { return 1; }
+        if (benchmark) { frames = 3600; }
         if (tests) { return ProtocolTests() ? 0 : 1; }
         if (producerMode) {
             if (child || !destination.empty()) { return 1; }
-            return Producer(input, output);
+            return Producer(input, output, exitOnFrame);
         }
         if (destination.empty()) { Logger::Error(L"Explicit --output directory required"); return 1; }
-        if (child) { return Consumer(input, output, destination, stall); }
+        if (child) { return Consumer(input, output, destination, stall, exitOnFrame); }
         if (input || output) { Logger::Error(L"Denied: cannot attach a channel to Broker"); return 1; }
         if (!std::filesystem::create_directory(destination)) { Logger::Error(L"Output directory must be new"); return 1; }
         if (!ProtocolTests()) { return 1; }
@@ -170,15 +193,26 @@ int wmain(int argc, wchar_t** argv) {
         const DWORD length = GetModuleFileNameW(nullptr, executable, static_cast<DWORD>(std::size(executable)));
         if (!length || length >= std::size(executable)) { Logger::Win32Error(L"GetModuleFileNameW", GetLastError()); return 1; }
         Child producer, recorder, display;
-        if (!producer.Start(executable, L"--producer")) { return 1; }
-        if (!recorder.Start(executable, L"--consumer --output \"" + destination.wstring() + L"\"" + (stall ? L" --stall" : L""))) { return 1; }
+        if (!producer.Start(executable, producerExit ? L"--producer --exit-on-frame" : L"--producer")) { return 1; }
+        if (!benchmark && !recorder.Start(executable, L"--consumer --output \"" + destination.wstring() + L"\"" + (stall ? L" --stall" : L"") + (consumerExit ? L" --exit-on-frame" : L""))) { return 1; }
         if (viewer && !display.Start((std::filesystem::path(executable).parent_path() / L"SecureViewer.exe").wstring(),
-            L"--shared-source --run-seconds 15 --capture-ready")) { return 1; }
-        Lease lease{1, GetTickCount64() + (expired ? 0 : 30000), 0, !deny, false};
+            (benchmark ? L"--shared-source --run-seconds 90 --benchmark-display" : L"--shared-source --run-seconds 15 --capture-ready"))) { return 1; }
+        Lease lease{1, GetTickCount64() + (expired ? 0 : (benchmark ? 90000 : 30000)), 0, !deny, false};
+        if (benchmark) { lease.pixelWidth = 1920; lease.pixelHeight = 1080; }
+        SharedFrameConsumer brokerGpu;
+        if (!brokerGpu.Initialize()) { return 1; }
+        Benchmark metrics; unsigned slot = 0;
         unsigned delivered = 0;
         const auto started = GetTickCount64();
         for (unsigned frame = 1; frame <= frames; ++frame) {
+            if (benchmark) {
+                slot = (std::max)(slot, metrics.ElapsedSlots());
+                if (!metrics.Pace(slot++)) { break; }
+                if (!metrics.Sample(producer.process.get(), display.process.get())) { return 1; }
+            }
+            const auto deliveryStart = Benchmark::Clock::now();
             Message message; message.frame = frame; message.deadline = lease.deadline;
+            message.pixelWidth = lease.pixelWidth; message.pixelHeight = lease.pixelHeight;
             if (revokeAfter && delivered == revokeAfter) { lease.revoked = true; }
             const auto decision = lease.Check(message, GetTickCount64());
             if (decision != Status::Ok) { Logger::Info(L"Lease terminal status=" + std::to_wstring(static_cast<unsigned>(decision))); break; }
@@ -186,7 +220,7 @@ int wmain(int argc, wchar_t** argv) {
             Message produced;
             if (!Receive(producer.output.get(), produced, 2000) || produced.frame != message.frame ||
                 produced.kind != Kind::Frame || produced.status != Status::Ok || produced.generation != message.generation ||
-                produced.deadline != message.deadline || produced.pixelWidth != width || produced.pixelHeight != height || !produced.handle) { return 1; }
+                produced.deadline != message.deadline || produced.pixelWidth != message.pixelWidth || produced.pixelHeight != message.pixelHeight || !produced.handle) { return 1; }
             HANDLE local = nullptr;
             if (!DuplicateHandle(producer.process.get(), reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(produced.handle)),
                 GetCurrentProcess(), &local, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
@@ -194,16 +228,28 @@ int wmain(int argc, wchar_t** argv) {
             }
             Handle shared(local);
             message.adapterLow = produced.adapterLow; message.adapterHigh = produced.adapterHigh;
-            Logger::Info(L"Broker frame adapter LUID=" + AdapterText(LUID{message.adapterLow, message.adapterHigh}));
-            if (!Deliver(recorder, shared.get(), message) ||
+            if (frame == 1) { Logger::Info(L"Broker frame adapter LUID=" + AdapterText(LUID{message.adapterLow, message.adapterHigh})); }
+            HANDLE inspection = nullptr;
+            if (!DuplicateHandle(GetCurrentProcess(), shared.get(), GetCurrentProcess(), &inspection, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
+                Logger::Win32Error(L"DuplicateHandle(Broker resource validation)", GetLastError()); return 1;
+            }
+            Message inspected = message; inspected.handle = reinterpret_cast<std::uintptr_t>(inspection);
+            SharedTexture snapshot;
+            if (!brokerGpu.OpenFrame(inspected, snapshot) || !snapshot.Close()) { return 1; }
+            if ((!benchmark && !Deliver(recorder, shared.get(), message)) ||
                 (viewer && !Deliver(display, shared.get(), message))) { return 1; }
             Message ack = message; ack.kind = Kind::Ack;
             if (!Send(producer.input.get(), ack)) { return 1; }
             lease.lastFrame = frame; ++delivered;
+            if (benchmark) { metrics.Delivered(deliveryStart); }
+        }
+        if (benchmark) {
+            metrics.Pace(3600);
+            if (!metrics.Sample(producer.process.get(), display.process.get()) || !metrics.Save(destination, delivered, AdapterText(brokerGpu.Adapter()))) { return 1; }
         }
         Message stop; stop.kind = Kind::Stop;
-        if (!Send(producer.input.get(), stop) || !Send(recorder.input.get(), stop) || (viewer && !Send(display.input.get(), stop))) { return 1; }
-        if (!producer.Finish() || !recorder.Finish() || (viewer && !display.Finish())) { return 1; }
+        if (!Send(producer.input.get(), stop) || (!benchmark && !Send(recorder.input.get(), stop)) || (viewer && !Send(display.input.get(), stop))) { return 1; }
+        if (!producer.Finish() || (!benchmark && !recorder.Finish()) || (viewer && !display.Finish())) { return 1; }
         std::wcout << L"Delivered=" << delivered << L"; elapsed_ms=" << GetTickCount64() - started << L"\n";
         Logger::Info(L"Lease stopped; previous immutable snapshots remain readable; delivered=" + std::to_wstring(delivered));
         return 0;

@@ -17,7 +17,7 @@
 
 ## 近期优先级
 
-1. 完成 TD-003：同 adapter 共享 GPU 纹理直入 Viewer，补零 readback/upload 与 1080p 性能证据。
+1. TD-003 CPU 往返已消除；按 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)继续处理 TD-005 性能/资源限制。
 2. 收敛 G2 身份、lease、撤销、故障矩阵；服务集成在 G2 可接受后推进。
 3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 
@@ -30,8 +30,9 @@
 
 ## 最近验证
 
+- TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒约 18FPS，资源/性能 Gate 未通过，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
+
 - Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；结果见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。
-- 本仓库已启用 Git 署名 hook；12 项真实提交回归与安装冲突检查、actionlint、`scripts/verify.ps1 -SkipInteractive` 通过（CTest 1/1、Rust 策略 4/4、console IPC 与预览）；本轮跳过桌面/捕获/GPU，不替代既有能力证据。
 - Phase 1 基线与历史治理记录保留原有证据，不将新构建替代真实捕获或隔离验收。
 - GitHub 首轮 CI 与 Dependabot 更新任务通过；告警/安全修复已启用，Cargo 更新待服务源码推送；本地两套 Rust lint/test 与 headless 验证通过，见 [CI 证据](docs/evidence/ci/README.md)。
 

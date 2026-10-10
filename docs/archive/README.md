@@ -7,3 +7,4 @@
 | 记录 | 用途 |
 | --- | --- |
 | [2026-10-10 治理基线](reviews/2026-10-10-governance-bootstrap.md) | uNAS 参考出处、迁移差异和首次 Git 范围 |
+| [2026-10-10 TD-003](reviews/2026-10-10-td003.md) | GPU Viewer CPU 往返偿还及未关闭的性能限制 |

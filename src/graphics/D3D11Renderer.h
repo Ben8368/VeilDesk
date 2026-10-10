@@ -20,8 +20,7 @@ public:
     D3D11Renderer& operator=(const D3D11Renderer&) = delete;
     bool Initialize(HWND hwnd, bool tryDisplayOnly = true, bool simulateDisplayOnlyFailure = false, bool requireHardware = false);
     bool Resize(UINT width, UINT height);
-    // Output/presentation is kept separate from the test source. Phase 2 can
-    // replace source drawing with sampling an ID3D11Texture2D in this path.
+    // Shared mode uses a GPU snapshot; Phase 1 retains its diagnostic drawing.
     bool RenderFrame(UINT dpi);
     bool SetSourceTexture(ID3D11Texture2D* texture);
     ID3D11Device* Device() const noexcept { return device_.Get(); }
@@ -30,6 +29,7 @@ public:
     std::uint64_t FrameCount() const noexcept { return frame_; }
     bool DisplayOnlyEnabled() const noexcept { return (swapFlags_ & DXGI_SWAP_CHAIN_FLAG_DISPLAY_ONLY) != 0; }
 private:
+    friend struct D3D11RendererTestAccess;
     bool CreateTargets();
     void ReleaseTargets();
     broker::ZeroCopyStats* stats_ = nullptr;

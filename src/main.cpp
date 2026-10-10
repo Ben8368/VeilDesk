@@ -18,7 +18,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     bool protection = true;
     bool displayOnly = true;
     bool simulateDisplayOnlyFailure = false;
-    bool sharedSource = false;
+    bool sharedSource = false, benchmarkDisplay = false;
     veil::broker::Handle channelInput, channelOutput;
     int count = 0;
     const std::unique_ptr<wchar_t*, decltype(&LocalFree)> argumentStorage(CommandLineToArgvW(GetCommandLineW(), &count), &LocalFree);
@@ -26,6 +26,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!args) { veil::Logger::Win32Error(L"CommandLineToArgvW", GetLastError()); return 1; }
     for (int i = 1; i < count; ++i) {
         if (std::wstring(args[i]) == L"--smoke-test") { runSeconds = 5; smokeTest = true; }
+        else if (std::wstring(args[i]) == L"--benchmark-display") { benchmarkDisplay = true; }
         else if (std::wstring(args[i]) == L"--shared-source") { sharedSource = true; }
         else if (std::wstring(args[i]) == L"--channel" && i + 2 < count) {
             try {
@@ -73,7 +74,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     renderer.SetProtectionStatus(status.enabled ? L"WDA_EXCLUDEFROMCAPTURE: API enabled" : L"WDA: NOT CONFIRMED / UNPROTECTED");
     if (!renderer.Initialize(window.Handle(), protection && displayOnly, simulateDisplayOnlyFailure, sharedSource)) { return 1; }
     if (sharedSource && !source.Initialize(renderer.Device(), &stats)) { return 1; }
-    window.SetResizeHandler([&renderer](UINT width, UINT height) { return renderer.Resize(width, height); });
+    window.SetResizeHandler([&renderer, &window, sharedSource](UINT width, UINT height) {
+        return renderer.Resize(width, height) && (!sharedSource || renderer.RenderFrame(window.Dpi()));
+    });
     window.Show(show);
     // The first ShowWindow honors STARTUPINFO even if a different command is
     // supplied. Timed diagnostics explicitly show the window on the second call.
@@ -84,6 +87,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
             veil::Logger::Win32Error(L"SetWindowPos(capture-ready)", GetLastError()); return 1;
         }
         veil::Logger::Info(L"Diagnostic capture-ready: own Viewer window placed topmost");
+    }
+    if (benchmarkDisplay) {
+        if (!sharedSource) { return 1; }
+        RECT rect{0, 0, 1920, 1080};
+        if (!AdjustWindowRectExForDpi(&rect, static_cast<DWORD>(GetWindowLongPtrW(window.Handle(), GWL_STYLE)),
+            FALSE, static_cast<DWORD>(GetWindowLongPtrW(window.Handle(), GWL_EXSTYLE)), window.Dpi()) ||
+            !SetWindowPos(window.Handle(), HWND_TOPMOST, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOACTIVATE)) {
+            veil::Logger::Win32Error(L"Benchmark Viewer size", GetLastError()); return 1;
+        }
+        window.Show(SW_SHOWNORMAL);
     }
     bool stopped = false;
     const int result = window.Run([&] {
@@ -98,6 +111,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                 if (message.kind == veil::broker::Kind::Stop) { stopped = true; PostQuitMessage(0); return true; }
                 if (!sourceLease.granted) {
                     sourceLease.granted = true; sourceLease.generation = message.generation; sourceLease.deadline = message.deadline;
+                    sourceLease.pixelWidth = message.pixelWidth; sourceLease.pixelHeight = message.pixelHeight;
                 }
                 const auto decision = sourceLease.Check(message, GetTickCount64());
                 if (decision != veil::broker::Status::Ok) {
@@ -106,13 +120,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                 veil::broker::SharedTexture texture;
                 if (!source.OpenFrame(message, texture) || !renderer.SetSourceTexture(texture.Get()) || !texture.Close()) { return false; }
                 message.kind = veil::broker::Kind::Ack; message.handle = 0;
-                if (!renderer.RenderFrame(window.Dpi()) || !veil::broker::Send(channelOutput.get(), message)) { return false; }
+                const auto previouslyPresented = renderer.FrameCount();
+                if (!renderer.RenderFrame(window.Dpi())) { return false; }
+                if (renderer.FrameCount() == previouslyPresented) {
+                    veil::Logger::Error(L"Location: Viewer Present; Cause: source frame not presented (occluded/recovery); Action: deny ACK"); return false;
+                }
+                if (!veil::broker::Send(channelOutput.get(), message)) { return false; }
                 sourceLease.lastFrame = message.frame;
                 return true;
             }
             if (sourceLease.granted && GetTickCount64() >= sourceLease.deadline) { return false; }
         }
-        return renderer.RenderFrame(window.Dpi());
+        return sharedSource || renderer.RenderFrame(window.Dpi());
     }, runSeconds, smokeTest);
     window.SetResizeHandler({});
     return sharedSource && !stopped ? 1 : result;

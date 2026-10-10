@@ -8,6 +8,7 @@
 | Viewer / D3D11 / WDA / DISPLAY_ONLY / GDI PNG | [Phase 1 验证记录](../tests/VERIFICATION.md) |
 | 外部工具和目标 OS 细分实际结果 | [README 手工测试表](../README.md#manual-testing)，P1 工作包启动后回填证据 |
 | Broker / 共享纹理 / 可信消费者 | [Broker 原型证据](evidence/p2-broker/README.md) |
+| GPU zero-copy Viewer / Adapter / 性能 | [TD-003 证据](evidence/p2-broker/zero-copy.md) |
 | Rust SecureService / 策略 | [服务原型证据](evidence/p3-service/README.md) |
 | Hyper-V / 第三方应用 / WDAC、VBS、HVCI | [Workspace 探针与未运行项](evidence/p4-workspace/README.md) |
 

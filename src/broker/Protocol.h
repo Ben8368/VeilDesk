@@ -26,10 +26,11 @@ static_assert(sizeof(Message) == 64);
 struct Lease {
     std::uint64_t generation = 1, deadline = 0, lastFrame = 0;
     bool granted = false, revoked = false;
+    std::uint32_t pixelWidth = width, pixelHeight = height;
     Status Check(const Message& message, std::uint64_t now) const noexcept {
         if (!granted || message.signature != magic || message.protocol != version ||
             message.kind != Kind::Frame || message.status != Status::Ok ||
-            message.generation != generation || message.pixelWidth != width || message.pixelHeight != height) {
+            message.generation != generation || message.pixelWidth != pixelWidth || message.pixelHeight != pixelHeight) {
             return Status::Invalid;
         }
         if (revoked) { return Status::Revoked; }
