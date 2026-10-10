@@ -39,7 +39,7 @@ bool Send(HANDLE pipe, const Message& message) {
 bool Child::Start(const std::wstring& executable, const std::wstring& options, ChildRole approvedRole) {
     ProcessIdentity parent;
     if (process || (approvedRole != ChildRole::Producer && approvedRole != ChildRole::View && approvedRole != ChildRole::Record) ||
-        !ReadProcessIdentity(GetCurrentProcess(), parent)) { return false; }
+        !ReadProcessIdentity(GetCurrentProcess(), parent) || !VerifyProcessPublisher(parent)) { return false; }
     if (parent.publisherState != PublisherState::Verified || parent.publisher.empty()) {
         Logger::Error(L"Location: Enrollment; Cause: Broker Authenticode publisher is not enrolled/trusted; Action: deny child launch"); return false;
     }
@@ -97,7 +97,8 @@ bool Child::Start(const std::wstring& executable, const std::wstring& options, C
         Logger::Win32Error(L"CreateProcessW(approved child)", GetLastError()); return false;
     }
     process.reset(info.hProcess); Handle thread(info.hThread);
-    if (!ReadProcessIdentity(process.get(), identity) || identity.publisherState != PublisherState::Verified ||
+    if (!ReadProcessIdentity(process.get(), identity) || !VerifyProcessPublisher(identity) ||
+        identity.publisherState != PublisherState::Verified ||
         identity.publisher != parent.publisher || identity.pid != info.dwProcessId ||
         !SamePrincipal(parent, identity) || !SameImage(expected, identity.imagePath)) {
         Logger::Error(L"Location: Enrollment; Cause: Authenticode publisher/identity/session/SID/image mismatch; Action: deny, terminate owned suspended child"); return false;

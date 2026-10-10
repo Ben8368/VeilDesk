@@ -50,7 +50,7 @@ TD-005 吞吐已定位并修复（见 [GPU 证据](evidence/p2-broker/zero-copy.
 | --- | --- | --- |
 | G2-A | 已关闭：1800 秒资源曲线与轮询 CPU 有证据；功耗与 timer 回退未测，由维护者限定接受 | 关闭依据：[长测记录](evidence/p2-broker/resource-stability.md)；不作功耗或 timer 回退性能承诺 |
 | G2-B | 已完成实现与限定验证：Service 是唯一 lease 真相源；Broker 每帧交付前消费 envelope | [ADR 0009](ADR/0009-authorization-envelope.md)；Rust/C++ 共享固定格式、真实 pipe 客户端身份绑定、Service 对端检查、帧/累计字节预算、过期/撤销拒绝与策略层伪造/重放/降级负向用例；SCM/LocalService 与 Authenticode 留在后续证据范围 |
-| G2-C | Authenticode publisher enrollment（实现已完成，项目证书 enrollment 未测） | `ProcessIdentity` 使用 WinVerifyTrust 和构建时 SHA-256 pin；平台签名样本正向、错 pin/未签名/篡改负向通过；VeilDesk 测试证书缺失，未签项目映像，见 [G2-C/D 证据](evidence/p2-broker/g2c-g2d.md) |
+| G2-C | Authenticode publisher enrollment（实现与项目 enrollment 均待验证） | C++ Broker 和 Rust Service 现在都要求构建时 SHA-256 pin；平台签名样本证明 C++ WinVerifyTrust 路径，最新 Service/CMake/缓存修正确认前不计入通过；VeilDesk 测试证书缺失，未签项目映像，见 [G2-C/D 证据](evidence/p2-broker/g2c-g2d.md) |
 | G2-D | 进行中：在途撤销 + crash / device-loss 故障矩阵 | 已测 producer/consumer 退出与 revoke-after-2；正常 Viewer 场景 occluded 未评审；Broker crash、在途 revoke race、device removed/reset 未注入，见 [G2-C/D 证据](evidence/p2-broker/g2c-g2d.md) |
 
 G2-A 已按限定接受关闭；G2-B 实现与限定验证已完成但后续性能复验未达 60 FPS；维护者授权在 G2-C 项目证书正向尚未验证时开始 G2-D。G2-C/D 和 P2-05 完成并评审前不宣称 G2 通过、不推进 G3。Phase 4 不在本轮授权范围；完成数量不等于 Gate 通过。

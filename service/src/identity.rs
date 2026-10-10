@@ -113,6 +113,7 @@ pub unsafe fn pipe_client_subject(
             ));
         }
     }
+    crate::authenticode::verify_broker_publisher(pid, creation_time, &image_path)?;
     let mut token = null_mut();
     if unsafe { OpenProcessToken(process.0, TOKEN_QUERY, &mut token) } == 0 {
         return Err(std::io::Error::last_os_error());

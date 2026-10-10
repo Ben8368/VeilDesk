@@ -49,6 +49,18 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
+仓库提供 `windows-x64-release` CMake preset，可统一配置 VS 2022、x64 和 Release 构建目录。用于 Broker/Service 集成运行时，还要在构建前设置项目 Authenticode 证书的 SHA-256 thumbprint；空值仅适用于拒绝子进程/授权的 fail-closed 开发构建。CMake 与 Rust Service 从同一环境变量读取 pin：
+
+```powershell
+$env:VEILDESK_AUTHENTICODE_PUBLISHER_SHA256 = '<64 位十六进制证书 SHA-256>'
+cmake --preset windows-x64-release
+cmake --build --preset windows-x64-release
+cargo build --manifest-path service/Cargo.toml --release
+ctest --preset windows-x64-release
+```
+
+无项目签名证书时不要填入其他厂商证书的 thumbprint；这不会验证 VeilDesk 项目 enrollment。
+
 首次配置若需要明确选择 VS 2022 / x64：
 
 ```powershell

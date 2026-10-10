@@ -1,5 +1,7 @@
 #pragma once
 #include "broker/AuthorizationEnvelope.h"
+#include "broker/Handle.h"
+#include "broker/ProcessIdentity.h"
 #include <Windows.h>
 #include <string>
 #include <vector>
@@ -21,5 +23,8 @@ private:
     bool allowConsolePeer_ = false;
     DWORD consolePeerPid_ = 0;
     std::uint32_t requestId_ = 0;
+    Handle verifiedServerProcess_;
+    ProcessIdentity verifiedServerIdentity_;
+    ProcessIdentity selfIdentity_;
 };
 }

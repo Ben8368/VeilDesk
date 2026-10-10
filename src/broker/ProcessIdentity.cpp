@@ -47,9 +47,11 @@ bool ReadProcessIdentity(HANDLE process, ProcessIdentity& identity) {
     }
     const std::unique_ptr<wchar_t, decltype(&LocalFree)> cleanup(sid, &LocalFree);
     result.userSid = sid;
-    VerifyAuthenticodePublisher(result.imagePath, VEILDESK_AUTHENTICODE_PUBLISHER_SHA256,
-        result.publisher, result.publisherState);
     identity = std::move(result); return true;
+}
+bool VerifyProcessPublisher(ProcessIdentity& identity) {
+    return VerifyAuthenticodePublisher(identity.imagePath, VEILDESK_AUTHENTICODE_PUBLISHER_SHA256,
+        identity.publisher, identity.publisherState);
 }
 bool SamePrincipal(const ProcessIdentity& a, const ProcessIdentity& b) noexcept {
     return !a.userSid.empty() && a.userSid == b.userSid && a.sessionId != MAXDWORD && a.sessionId == b.sessionId;
@@ -68,8 +70,7 @@ bool MatchesRetainedProcess(HANDLE process, const ProcessIdentity& enrolled) {
     if (!ReadProcessIdentity(process, actual)) { return false; }
     const bool matches = enrolled.pid && enrolled.creationTime && actual.pid == enrolled.pid &&
         actual.creationTime == enrolled.creationTime && SamePrincipal(actual, enrolled) && SameImage(actual.imagePath, enrolled.imagePath) &&
-        enrolled.publisherState == PublisherState::Verified && actual.publisherState == PublisherState::Verified &&
-        !enrolled.publisher.empty() && actual.publisher == enrolled.publisher;
+        enrolled.publisherState == PublisherState::Verified && !enrolled.publisher.empty();
     if (!matches) { Logger::Error(L"Location: Identity; Cause: retained subject or Authenticode publisher mismatch; Action: deny"); }
     return matches;
 }

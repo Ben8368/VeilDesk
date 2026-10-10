@@ -20,6 +20,7 @@ int wmain(int argc, wchar_t** argv) {
         Logger::Initialize(L"ProcessIdentityProbe.log");
         ProcessIdentity current;
         if (!ReadProcessIdentity(GetCurrentProcess(), current) || current.userSid.empty() || !current.creationTime) { return 1; }
+        VerifyProcessPublisher(current);
         if (current.publisherState != PublisherState::Verified) {
             if (MatchesRetainedProcess(GetCurrentProcess(), current)) { return 1; }
             Child denied;

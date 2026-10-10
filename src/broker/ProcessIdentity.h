@@ -13,6 +13,7 @@ struct ProcessIdentity {
     PublisherState publisherState = PublisherState::NotVerified;
 };
 bool ReadProcessIdentity(HANDLE retainedProcess, ProcessIdentity& identity);
+bool VerifyProcessPublisher(ProcessIdentity& identity);
 bool VerifyAuthenticodePublisher(const std::wstring& imagePath, const std::wstring& expectedThumbprint,
     std::wstring& signerThumbprint, PublisherState& state, LONG* trustStatus = nullptr);
 bool SamePrincipal(const ProcessIdentity& a, const ProcessIdentity& b) noexcept;

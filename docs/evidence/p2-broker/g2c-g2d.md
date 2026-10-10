@@ -53,3 +53,9 @@ powershell -NoProfile -File scripts/benchmark-zero-copy.ps1 `
 | Viewer 正常显示的 BrokerSmoke 场景 | 首帧 Present 返回 occluded，测试退出码 1 | 未评审；无有效 Viewer 故障结论 |
 
 本地 G2-D 结果目录：`build/test-results/g2d-smoke-2edc3a0726f04f1d906671da92546f46`。Broker 崩溃、在途 revoke race、producer/consumer 的真实强制终止、DXGI device removed/reset 尚未注入；已交付像素不可追回仍是边界。G2-D 正在进行，不能据局部矩阵关闭 G2。
+
+## 后续代码审查修正（待 Windows 验证）
+
+审查发现原 CMake pin 检查使用了不受 CMake 正则支持的 `{64}` 重复语法；现改为长度与十六进制字符分开检查，并加入 `CMakePresets.json` 统一 Windows x64 Release 配置。Rust Service 现在也在首次接纳 Broker 时执行 WinVerifyTrust 与同一 SHA-256 pin；C++ 与 Service 的 pin 都从 `VEILDESK_AUTHENTICODE_PUBLISHER_SHA256` 构建环境读取，空 pin 继续拒绝。Broker/Service 的签名验证结果在保留 PID、创建时间与映像路径后缓存，逐帧只复核实际进程身份，避免每帧调用 WinVerifyTrust。
+
+本次改动工作区为 macOS arm64，未安装 CMake、Windows SDK 或 MSVC，且没有项目签名证书；新增 Rust WinTrust FFI、Windows CMake preset、正负 pin 配置以及签名性能路径均待 Windows x64 验证，不据源码改动宣称 G2-C 通过。

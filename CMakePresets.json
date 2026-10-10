@@ -1,0 +1,32 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-x64-release",
+      "displayName": "Windows x64 Release (Visual Studio 2022)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-x64-release",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "VEILDESK_AUTHENTICODE_PUBLISHER_SHA256": "$env{VEILDESK_AUTHENTICODE_PUBLISHER_SHA256}"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-x64-release",
+      "configurePreset": "windows-x64-release",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-x64-release",
+      "configurePreset": "windows-x64-release",
+      "configuration": "Release",
+      "filter": { "exclude": { "label": "Interactive" } },
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

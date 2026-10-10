@@ -42,36 +42,46 @@ bool ReadExact(HANDLE pipe, void* output, DWORD size) {
 }
 
 AuthorizationClient::AuthorizationClient(std::wstring pipeName, bool allowConsolePeer, DWORD consolePeerPid)
-    : pipeName_(std::move(pipeName)), allowConsolePeer_(allowConsolePeer), consolePeerPid_(consolePeerPid) {}
+    : pipeName_(std::move(pipeName)), allowConsolePeer_(allowConsolePeer), consolePeerPid_(consolePeerPid) {
+    if (!ReadProcessIdentity(GetCurrentProcess(), selfIdentity_) || !VerifyProcessPublisher(selfIdentity_)) {
+        Logger::Error(L"Authorization Broker publisher verification failed; authorization disabled");
+    }
+}
 
 bool AuthorizationClient::VerifyServer(HANDLE pipe) {
     ULONG pid = 0;
     if (!GetNamedPipeServerProcessId(pipe, &pid) || !pid) { Logger::Win32Error(L"GetNamedPipeServerProcessId; authorization denied", GetLastError()); return false; }
-    if (allowConsolePeer_) {
-        if (!consolePeerPid_ || pid != consolePeerPid_) { Logger::Error(L"Authorization console peer PID mismatch; denied"); return false; }
+    if (allowConsolePeer_ && (!consolePeerPid_ || pid != consolePeerPid_)) {
+        Logger::Error(L"Authorization console peer PID mismatch; denied"); return false;
+    }
+    ProcessIdentity peer;
+    if (verifiedServerProcess_ && verifiedServerIdentity_.pid == pid &&
+        MatchesRetainedProcess(verifiedServerProcess_.get(), verifiedServerIdentity_)) {
+        peer = verifiedServerIdentity_;
+    } else {
         HANDLE raw = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-        if (!raw) { Logger::Win32Error(L"OpenProcess(console Service peer)", GetLastError()); return false; }
-        Handle process(raw); ProcessIdentity peer, self;
-        if (!ReadProcessIdentity(process.get(), peer) || !ReadProcessIdentity(GetCurrentProcess(), self)) { return false; }
-        const bool matches = peer.sessionId == self.sessionId && peer.userSid == self.userSid &&
-            peer.publisherState == PublisherState::Verified && self.publisherState == PublisherState::Verified &&
-            !peer.publisher.empty() && peer.publisher == self.publisher &&
+        if (!raw) { Logger::Win32Error(L"OpenProcess(SecureService peer)", GetLastError()); return false; }
+        Handle process(raw);
+        if (!ReadProcessIdentity(process.get(), peer) || !VerifyProcessPublisher(peer) ||
+            peer.publisherState != PublisherState::Verified || peer.publisher.empty()) {
+            Logger::Error(L"Authorization Service publisher verification failed; denied"); return false;
+        }
+        verifiedServerIdentity_ = peer;
+        verifiedServerProcess_ = std::move(process);
+    }
+    if (allowConsolePeer_) {
+        const bool matches = peer.sessionId == selfIdentity_.sessionId && peer.userSid == selfIdentity_.userSid &&
+            selfIdentity_.publisherState == PublisherState::Verified && peer.publisher == selfIdentity_.publisher &&
             CompareStringOrdinal(std::filesystem::path(peer.imagePath).filename().c_str(), -1, L"veil-secure-service.exe", -1, TRUE) == CSTR_EQUAL;
         if (!matches) { Logger::Error(L"Authorization console Service publisher/identity mismatch; denied"); }
         return matches;
     }
-    HANDLE raw = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (!raw) { Logger::Win32Error(L"OpenProcess(SecureService peer)", GetLastError()); return false; }
-    Handle process(raw); ProcessIdentity peer;
     wchar_t programFiles[32768]{};
     const DWORD length = GetEnvironmentVariableW(L"ProgramFiles", programFiles, static_cast<DWORD>(std::size(programFiles)));
-    if (!length || length >= std::size(programFiles) || !ReadProcessIdentity(process.get(), peer)) { return false; }
-    ProcessIdentity self;
-    if (!ReadProcessIdentity(GetCurrentProcess(), self)) { return false; }
+    if (!length || length >= std::size(programFiles)) { return false; }
     const auto expected = (std::filesystem::path(programFiles) / L"VeilDesk" / L"SecureService" / L"veil-secure-service.exe").wstring();
     if (peer.userSid != L"S-1-5-19" || !SameImage(peer.imagePath, expected) ||
-        peer.publisherState != PublisherState::Verified || self.publisherState != PublisherState::Verified ||
-        peer.publisher.empty() || peer.publisher != self.publisher) {
+        selfIdentity_.publisherState != PublisherState::Verified || peer.publisher != selfIdentity_.publisher) {
         Logger::Error(L"Authorization server publisher/identity/path mismatch; denied"); return false;
     }
     return true;
