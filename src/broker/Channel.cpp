@@ -1,11 +1,13 @@
 #include "broker/Channel.h"
 #include "common/Logger.h"
+#include "common/PreciseTimer.h"
 #include <vector>
 #include <filesystem>
 
 namespace veil::broker {
 bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs) {
     const auto end = GetTickCount64() + timeoutMs;
+    thread_local PreciseTimer poll;
     DWORD available = 0;
     while (GetTickCount64() < end) {
         if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) {
@@ -21,7 +23,7 @@ bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs) {
             }
             return true;
         }
-        Sleep(2);
+        poll.Wait(1);
     }
     Logger::Error(L"Protocol deadline exceeded"); return false;
 }

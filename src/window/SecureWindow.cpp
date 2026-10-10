@@ -1,5 +1,6 @@
 #include "window/SecureWindow.h"
 #include "common/Logger.h"
+#include "common/PreciseTimer.h"
 #include <chrono>
 #include <utility>
 #include <vector>
@@ -64,6 +65,7 @@ int SecureWindow::Run(const std::function<bool()>& render, unsigned int runSecon
     }
     const unsigned int smokeSteps = smokeMonitors.size() > 1 ? 10U : 8U;
     MSG msg{};
+    PreciseTimer idle;
     for (;;) {
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) { return failed_ ? 1 : static_cast<int>(msg.wParam); }
@@ -108,7 +110,11 @@ int SecureWindow::Run(const std::function<bool()>& render, unsigned int runSecon
             SendMessageW(hwnd_, WM_CLOSE, 0, 0);
         } else {
             // Throttle idle, minimized and occluded windows without busy spinning.
-            const DWORD wait = MsgWaitForMultipleObjectsEx(0, nullptr, minimized_ ? 100 : 8, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+            const DWORD interval = minimized_ ? 100 : 8;
+            const bool precise = idle.Arm(interval);
+            HANDLE timer = idle.Get();
+            const DWORD wait = MsgWaitForMultipleObjectsEx(precise ? 1 : 0, precise ? &timer : nullptr,
+                precise ? interval + 100 : interval, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
             if (wait == WAIT_FAILED) { Logger::Win32Error(L"MsgWaitForMultipleObjectsEx", GetLastError()); return 1; }
         }
     }

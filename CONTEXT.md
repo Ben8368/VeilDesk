@@ -17,7 +17,7 @@
 
 ## 近期优先级
 
-1. TD-003 CPU 往返已消除；按 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)继续处理 TD-005 性能/资源限制。
+1. TD-005 吞吐已定位为计时器取整并修复（约 59FPS，未引入 pool）；剩余长时资源/CPU 证据见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
 2. [自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现；继续统一 lease、在途撤销和 G2 故障矩阵。
 3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 
@@ -30,7 +30,7 @@
 
 ## 最近验证
 
-- TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒约 18FPS，资源/性能 Gate 未通过，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
+- TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒由约 18FPS 提升到约 59FPS（3556–3566/3600），长时资源 Gate 未通过，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
 
 - Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；结果见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。
 - Phase 1 基线与历史治理记录保留原有证据，不将新构建替代真实捕获或隔离验收。

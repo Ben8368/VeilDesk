@@ -1,5 +1,6 @@
 #include "broker/Benchmark.h"
 #include "common/Logger.h"
+#include "common/PreciseTimer.h"
 #include <psapi.h>
 #include <algorithm>
 #include <fstream>
@@ -13,11 +14,15 @@ unsigned Benchmark::ElapsedSlots() const {
 }
 bool Benchmark::Pace(unsigned slot) const {
     const auto target = started_ + std::chrono::nanoseconds(static_cast<long long>(slot) * 1000000000LL / 60);
-    while (Clock::now() < target) { Sleep(1); }
+    thread_local PreciseTimer pacing;
+    while (Clock::now() < target) { pacing.Wait(1); }
     return Clock::now() < started_ + std::chrono::seconds(60);
 }
 void Benchmark::Delivered(Clock::time_point started) {
     latencies_.push_back(std::chrono::duration<double, std::milli>(Clock::now() - started).count());
+}
+void Benchmark::Record(Stage stage, Clock::time_point started) {
+    stageMs_[static_cast<unsigned>(stage)] += std::chrono::duration<double, std::milli>(Clock::now() - started).count();
 }
 bool Benchmark::Sample(HANDLE producer, HANDLE viewer) {
     const double seconds = std::chrono::duration<double>(Clock::now() - started_).count();
@@ -65,6 +70,8 @@ bool Benchmark::Save(const std::filesystem::path& directory, unsigned produced, 
         << ",\n  \"frames_produced\":" << produced << ", \"frames_displayed\":" << ordered.size()
         << ", \"frames_dropped\":" << 3600 - ordered.size()
         << ",\n  \"average_delivery_ms\":" << mean << ", \"p95_delivery_ms\":" << p95
+        << ",\n  \"average_produce_ms\":" << stageMs_[0] / ordered.size() << ", \"average_inspect_ms\":" << stageMs_[1] / ordered.size()
+        << ", \"average_view_ms\":" << stageMs_[2] / ordered.size()
         << ",\n  \"private_bytes_first\":" << resources_.front().privateBytes
         << ", \"private_bytes_last\":" << resources_.back().privateBytes
         << ",\n  \"post_warmup_bytes_per_second\":" << slope

@@ -225,6 +225,8 @@ int wmain(int argc, wchar_t** argv) {
             if (!Receive(producer.output.get(), produced, 2000) || produced.frame != message.frame ||
                 produced.kind != Kind::Frame || produced.status != Status::Ok || produced.generation != message.generation ||
                 produced.deadline != message.deadline || produced.pixelWidth != message.pixelWidth || produced.pixelHeight != message.pixelHeight || !produced.handle) { return 1; }
+            if (benchmark) { metrics.Record(Benchmark::Stage::Produce, deliveryStart); }
+            const auto inspectStart = Benchmark::Clock::now();
             HANDLE local = nullptr;
             if (!DuplicateHandle(producer.process.get(), reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(produced.handle)),
                 GetCurrentProcess(), &local, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
@@ -240,8 +242,11 @@ int wmain(int argc, wchar_t** argv) {
             Message inspected = message; inspected.handle = reinterpret_cast<std::uintptr_t>(inspection);
             SharedTexture snapshot;
             if (!brokerGpu.OpenFrame(inspected, snapshot) || !snapshot.Close()) { return 1; }
+            if (benchmark) { metrics.Record(Benchmark::Stage::Inspect, inspectStart); }
+            const auto viewStart = Benchmark::Clock::now();
             if ((!benchmark && !Deliver(recorder, shared.get(), message)) ||
                 (viewer && !Deliver(display, shared.get(), message))) { return 1; }
+            if (benchmark) { metrics.Record(Benchmark::Stage::View, viewStart); }
             Message ack = message; ack.kind = Kind::Ack;
             if (!Send(producer.input.get(), ack)) { return 1; }
             lease.lastFrame = frame; ++delivered;
