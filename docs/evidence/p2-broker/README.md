@@ -1,6 +1,6 @@
 # Phase 2 Broker 原型证据
 
-日期：2026-10-10（Asia/Shanghai）；工作包：P2-01..05 的限定原型切片；G2：未通过，维护者未评审接受。
+日期：2026-10-10（Asia/Shanghai）；工作包：P2-01..05 的限定原型切片；G2：未通过。维护者已限定接受 G2-A 未测项并关闭 G2-A；G2-B 已完成实现与限定验证，G2-C/D 与 P2-05 尚未完成。
 源码版本：基于 `b699715` 的本轮未提交工作树；源文件在 `src/broker/`、Viewer 输入与 CMake。原始日志/PNG 留在受忽略结果目录。
 
 ## 环境与输入
@@ -37,6 +37,11 @@ powershell -NoProfile -File scripts/verify.ps1
 每帧新纹理、一帧在途；完成 ACK 后释放 HANDLE。通道失败停止会话、关闭管道，并只终止自己创建且保留进程对象的子进程；部分完成 PNG 保留，未完成 PNG 清理。
 旧资源和已保存像素不能追回；不可变纹理只保证原型不向旧资源再写未来帧。
 本机 3/3 新 CTest 通过，包括一次实际 GPU 同步超时；未据此宣称长期 GPU/driver 零泄漏、故障自动恢复或性能。
+
+## G2-B Service 授权接线
+
+Broker 现在不再自行决定授权：从 SecureService 独立授权管道取得 RECORD/VIEW envelope，在每帧向 producer 请求纹理前将所有适用票据、当前租约内帧序号与 BGRA 字节数一起提交 Service。Service 精确核验主体/lease/epoch/generation/deadline，并原子递增单调帧号与累计字节；拒绝时 Broker 不向消费者交付共享 HANDLE。票据接近 30 秒期限或累计预算耗尽时向 Service 续签。
+console 端到端场景中 approved 交付 8 帧；撤销后只交付此前 2 帧；过期、伪造 PID、单帧超预算和 Service 不可用均无新帧；错误 scope 拒签；重放在 1 帧后拒绝。策略单元测试覆盖伪造主体/epoch/generation、过期、重放、累计预算原子失败与未知 scope。完整 `scripts/verify.ps1` CTest 12/12；实现限制和 SCM 未测项见 [Service 证据](../p3-service/README.md)。本段不代表 G2 总体验收，也不新增 GPU 性能结论。
 
 ## 未覆盖与 G2 剩余
 

@@ -9,7 +9,7 @@ Broker 仅自身 Producer/Record 和同目录 SecureViewer/View；角色在 Brok
 交付前核对同一个 retained process HANDLE 的身份和存活状态；不调用 OpenProcess 按 PID attach。private inherited pipes 仍是 capability；未开放任意消费者入口。
 `ProcessIdentity.publisherState=NotVerified`，publisher 为空，未声称签名安全；路径与同 SID 不是完整信任证明。
 每次 Broker 会话由系统 RNG 生成非零 generation；撤销 bump、停止 handle delivery、关闭旧 session。每帧新资源，旧 handle 的像素不召回，也不接收新资源的未来写入。
-当前仍为操作员显式启动的本地原型 lease，Rust 服务尚不控制 Broker；versioned authorization envelope / 统一 issuer 尚未实现。
+此文记录 P2-03/G2-B 接通前的 Broker 本地 enrollment 基线。当前授权状态已由 [ADR 0009](../../ADR/0009-authorization-envelope.md) 定义：Service 签发并逐帧核验 envelope；本文件关于签名者未验证、同用户映像篡改和句柄转移的限制仍有效。
 
 ## 测试命令与结果
 
@@ -28,6 +28,6 @@ Broker 仅自身 Producer/Record 和同目录 SecureViewer/View；角色在 Brok
 ## 限制 / Gate
 
 publisher/signature、二进制替换、恶意同用户进程/句柄转移、真实 PID 复用、真实 session 切换、在途 revoke、Broker crash/device loss 未验收。
-canonical lease_id/subject/session/scope/issued_at/expires_at/nonce 与 Service 强制控制仍待实现，不能把随机 generation 当授权 token。
+canonical lease_id/subject/session/scope/issued_at/expires_at/nonce 与 Service 强制控制已在 G2-B 限定实现；Publisher/Authenticode enrollment 仍待 G2-C。随机 generation 不是单独授权 token。
 性能数字来自 `9d04ebd` GPU 工作包（约 19FPS、热身后 private bytes 增长）；身份增量尚不构成性能复验或无泄漏保证。
 G2 仍未通过，未推进 Phase 3/4、SCM 安装或系统策略/虚拟化修改。当前入口与优先级见 [Context](../../../CONTEXT.md)。

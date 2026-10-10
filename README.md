@@ -73,7 +73,7 @@ Viewer、普通捕获和 Broker 均嵌入 asInvoker、Windows 10 compatibility �
 
 ### Broker 与后续基础设施
 
-指定一个尚不存在的输出目录运行限定测试切片；最多 120 帧，lease 上限 30 秒，到期停止新资源交付：
+Broker 生产运行必须由安装在 `%ProgramFiles%\VeilDesk\CaptureBroker.exe` 的 Broker 连接已安装 SecureService；服务不可用或对端/映像路径不匹配时默认拒绝。端到端开发验证用 console Service 和测试对端身份，应运行下方 smoke，不要把测试参数当作生产配置。常规授权按 30 秒/帧数/累计字节预算续签，到期停止新资源交付：
 
 ```powershell
 .\build\Release\CaptureBroker.exe --viewer --frames 8 --output .\artifacts\capture-session-1
@@ -83,7 +83,7 @@ Viewer、普通捕获和 Broker 均嵌入 asInvoker、Windows 10 compatibility �
 
 父目录需先存在。Broker 启动独立自有 producer、PNG 消费者和可选 Viewer，纹理不通过截图 API 获得。共享模式要求 WDA 确认，不能通过关闭 WDA 放行可信输出。
 每帧保存为 `frame-N.png`；拒绝覆盖既有目录/文件。PNG 序列是受控测试输出，不是编码视频；内容和日志默认本地留存。
-原型只支持启动树内的固定程序，没有外部进程注册/按 PID 授权；旧快照可以留存，撤销不能追回已交付像素。
+原型只支持启动树内的固定程序，没有外部进程注册/按 PID 授权；publisher enrollment 仍未实现。旧快照可以留存，撤销不能追回已交付像素。`tests/broker-smoke.ps1` 会启动限时 console Service 并验证真实 Broker 授权路径。
 
 Rust 服务独立需要 Rust 1.85+ MSVC 工具链，依赖由 Cargo.lock 锁定。运行 console 验证不会安装服务：
 

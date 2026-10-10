@@ -1,8 +1,14 @@
-param([string]$BuildDir, [string]$ResultDir)
+param([string]$BuildDir, [string]$ResultDir, [string]$ServiceExe)
 $ErrorActionPreference = 'Stop'
 $binary = Join-Path $BuildDir 'CaptureBroker.exe'
 $suite = Join-Path $ResultDir ('benchmark-smoke-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $suite -Force | Out-Null
+$service = Start-Process -FilePath $ServiceExe -ArgumentList @('--console', '60') -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput (Join-Path $suite 'service.stdout.log') -RedirectStandardError (Join-Path $suite 'service.stderr.log')
+$authorizationOptions = @('--authorization-pipe', "\\.\pipe\VeilDesk.SecureService.test.$($service.Id).authorization",
+    '--allow-console-service-peer', '--console-service-pid', [string]$service.Id)
+Start-Sleep -Milliseconds 250
+if ($service.HasExited) { throw 'Console Service exited before benchmark start' }
 Push-Location $suite
 try {
     foreach ($invalid in @(@('--duration-seconds','0'), @('--duration-seconds','7201'), @('--duration-seconds','-1'),
@@ -13,7 +19,7 @@ try {
     }
     & $binary --duration-seconds 3 --output (Join-Path $suite 'invalid') | Out-Null
     if ($LASTEXITCODE -eq 0) { throw 'Benchmark options without mode admitted' }
-    & $binary --benchmark --duration-seconds 3 --width 320 --height 180 --fps 30 --sample-seconds 1 --output (Join-Path $suite 'metrics')
+    & $binary @authorizationOptions --benchmark --duration-seconds 3 --width 320 --height 180 --fps 30 --sample-seconds 1 --output (Join-Path $suite 'metrics')
     if ($LASTEXITCODE -ne 0) { throw 'Parameterized benchmark failed' }
     $metrics = Get-Content (Join-Path $suite 'metrics/benchmark.json') -Raw | ConvertFrom-Json
     if ($metrics.duration_seconds -lt 3 -or $metrics.width -ne 320 -or $metrics.height -ne 180 -or
@@ -34,4 +40,8 @@ try {
     $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
     & (Join-Path $root 'scripts/analyze-benchmark.ps1') -Csv (Join-Path $suite 'metrics/resources.csv') -OutputDir (Join-Path $suite 'analysis')
     Write-Output 'Benchmark smoke PASS: bounded options, real duration, process sampling, missing-counter semantics, parameterized GPU display.'
-} finally { Pop-Location }
+} finally {
+    Pop-Location
+    if (-not $service.HasExited) { Stop-Process -Id $service.Id -Force }
+    $service.WaitForExit()
+}

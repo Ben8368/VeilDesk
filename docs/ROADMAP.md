@@ -35,6 +35,8 @@ G1 是限定环境的 PoC 验收，不是所有目标 Windows 版本的发布认
 - 固定 GPU / adapter / 分辨率环境下记录同步、正确性、资源释放和性能；跨 adapter 未测就不支持承诺。
 - 阻断风险已解决、降级或由维护者记录有限接受；能稳定回到 Phase 1 验证路径。
 
+G2-A 于 2026-10-10 由维护者限定接受关闭：具名长测完成资源曲线与轮询 CPU；电功耗和高精度 timer 不可用时的回退性能未测并明确排除相关承诺。G2-A 关闭不代表 G2 通过。G2-B 的 Service 权威 envelope、真实 pipe 客户端身份绑定、Broker 对端检查、逐帧原子预算消费和限定端到端负向场景已实现并验证；G2-C 尚未启动。证据见 [ADR 0009](ADR/0009-authorization-envelope.md) 与 [Service 证据](evidence/p3-service/README.md)。
+
 ## Phase 3：Rust SecureService
 
 目标：以 Windows 服务管理策略、身份、授权 lease 与 Broker 生命周期；C++ Viewer / D3D11 保持独立。

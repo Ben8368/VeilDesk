@@ -1,7 +1,10 @@
 use crate::transport::{new_policy, wide, Pipe};
 use std::{
     ptr::{null, null_mut},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::Duration,
 };
 use windows_sys::Win32::System::Services::*;
@@ -77,18 +80,56 @@ unsafe extern "system" fn service_main(_: u32, _: *mut *mut u16) {
             return;
         }
     };
+    let authorization_pipe =
+        match Pipe::new_authorization(r"\\.\pipe\VeilDesk.SecureService.authorization.v1", true) {
+            Ok(pipe) => pipe,
+            Err(error) => {
+                status(
+                    handle,
+                    SERVICE_STOPPED,
+                    error.raw_os_error().unwrap_or(1) as u32,
+                );
+                return;
+            }
+        };
     if !status(handle, SERVICE_RUNNING, 0) {
         return;
     }
-    let result = new_policy().and_then(|mut policy| {
-        pipe.serve(
-            &mut policy,
-            || STOP.load(Ordering::Acquire),
-            Duration::from_secs(365 * 86400),
-        )
+    let result = new_policy().and_then(|policy| {
+        let policy = Mutex::new(policy);
+        std::thread::scope(|scope| {
+            let policy_ref = &policy;
+            let diagnostic = scope.spawn(move || {
+                pipe.serve(
+                    policy_ref,
+                    || STOP.load(Ordering::Acquire),
+                    Duration::from_secs(365 * 86400),
+                )
+            });
+            let policy_ref = &policy;
+            let authorization = scope.spawn(move || {
+                authorization_pipe.serve_authorization(
+                    policy_ref,
+                    || STOP.load(Ordering::Acquire),
+                    Duration::from_secs(365 * 86400),
+                    true,
+                )
+            });
+            diagnostic
+                .join()
+                .map_err(|_| std::io::Error::other("diagnostic IPC worker panicked"))??;
+            authorization
+                .join()
+                .map_err(|_| std::io::Error::other("authorization IPC worker panicked"))??;
+            policy
+                .lock()
+                .map_err(|_| std::io::Error::other("policy mutex poisoned"))?
+                .revoke_all()
+                .map_err(std::io::Error::other)?;
+            Ok(())
+        })
     });
     status(handle, SERVICE_STOP_PENDING, 0);
-    drop(pipe);
     let error = result
         .err()
         .map(|error| error.raw_os_error().unwrap_or(1) as u32)

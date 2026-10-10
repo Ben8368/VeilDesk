@@ -13,7 +13,7 @@ add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WIN
 add_compile_options(/W4 /permissive- /utf-8 /EHsc)
 add_library(VeilCommon STATIC src/common/Logger.cpp src/common/ProgressWatchdog.cpp src/common/SystemInfo.cpp src/common/PreciseTimer.cpp)
 target_include_directories(VeilCommon PUBLIC src)
-add_library(VeilBroker STATIC src/broker/Channel.cpp src/broker/ProcessIdentity.cpp src/broker/Protocol.cpp src/broker/SharedFrame.cpp src/broker/SharedFrameProducer.cpp)
+add_library(VeilBroker STATIC src/broker/AuthorizationEnvelope.cpp src/broker/AuthorizationClient.cpp src/broker/Channel.cpp src/broker/ProcessIdentity.cpp src/broker/Protocol.cpp src/broker/SharedFrame.cpp src/broker/SharedFrameProducer.cpp)
 target_link_libraries(VeilBroker PUBLIC VeilCommon d3d11 dxgi d3dcompiler advapi32 bcrypt)
 add_library(VeilFrameReadback STATIC src/broker/FrameReadback.cpp)
 target_link_libraries(VeilFrameReadback PUBLIC VeilBroker)
@@ -28,6 +28,8 @@ target_link_libraries(CaptureBroker PRIVATE VeilFrameReadback psapi pdh wtsapi32
 target_link_options(CaptureBroker PRIVATE /MANIFEST:NO)
 add_executable(SharedTextureProbe src/broker/Probe.cpp)
 target_link_libraries(SharedTextureProbe PRIVATE VeilFrameReadback)
+add_executable(AuthorizationEnvelopeProbe tests/AuthorizationEnvelopeProbe.cpp src/broker/AuthorizationEnvelope.cpp)
+target_include_directories(AuthorizationEnvelopeProbe PRIVATE src)
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT SecureViewer)
 include(CTest)
 if(BUILD_TESTING)
@@ -55,17 +57,19 @@ if(BUILD_TESTING)
     add_test(NAME ZeroCopyStructure COMMAND "${VEIL_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_SOURCE_DIR}/tests/zero-copy-structure.ps1")
     add_test(NAME BrokerProtocol COMMAND CaptureBroker --protocol-tests)
+    add_test(NAME AuthorizationEnvelopeProbe COMMAND AuthorizationEnvelopeProbe
+        "${CMAKE_SOURCE_DIR}/tests/fixtures/authorization-envelope-v1.hex")
     add_test(NAME BrokerSmoke COMMAND "${VEIL_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_SOURCE_DIR}/tests/broker-smoke.ps1" -BuildDir "$<TARGET_FILE_DIR:CaptureBroker>"
-        -ResultDir "${CMAKE_BINARY_DIR}/test-results")
-    set_tests_properties(ZeroCopyStructure BrokerProtocol PROPERTIES LABELS "Headless")
+        -ResultDir "${CMAKE_BINARY_DIR}/test-results" -ServiceExe "${CMAKE_SOURCE_DIR}/service/target/release/veil-secure-service.exe")
+    set_tests_properties(ZeroCopyStructure BrokerProtocol AuthorizationEnvelopeProbe PROPERTIES LABELS "Headless")
     set_tests_properties(BrokerSmoke PROPERTIES RUN_SERIAL TRUE TIMEOUT 90)
     add_test(NAME BenchmarkAnalysis COMMAND "${VEIL_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_SOURCE_DIR}/tests/benchmark-analysis.ps1" -ResultDir "${CMAKE_BINARY_DIR}/test-results")
     set_tests_properties(BenchmarkAnalysis PROPERTIES LABELS "Headless" TIMEOUT 30)
     add_test(NAME BenchmarkSmoke COMMAND "${VEIL_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_SOURCE_DIR}/tests/benchmark-smoke.ps1" -BuildDir "$<TARGET_FILE_DIR:CaptureBroker>"
-        -ResultDir "${CMAKE_BINARY_DIR}/test-results")
+        -ResultDir "${CMAKE_BINARY_DIR}/test-results" -ServiceExe "${CMAKE_SOURCE_DIR}/service/target/release/veil-secure-service.exe")
     set_tests_properties(BenchmarkSmoke PROPERTIES LABELS "Interactive" RUN_SERIAL TRUE TIMEOUT 30)
     add_test(NAME SharedTextureProbe COMMAND SharedTextureProbe)
     set_tests_properties(SharedTextureProbe PROPERTIES RUN_SERIAL TRUE TIMEOUT 15)

@@ -44,16 +44,16 @@
 
 ### G2 剩余收敛（维护者 2026-10-10 指定顺序）
 
-TD-005 吞吐已定位并修复（见 [GPU 证据](evidence/p2-broker/zero-copy.md)）；以下按 G2-A → G2-B → G2-C → G2-D 推进，均归属 P2-03/P2-04/P2-05。
+TD-005 吞吐已定位并修复（见 [GPU 证据](evidence/p2-broker/zero-copy.md)）。维护者已限定接受 G2-A 未测的功耗与 timer 回退性能并关闭该审查；当前按 G2-B → G2-C → G2-D 推进，均归属 P2-03/P2-04/P2-05。停止 GPU 性能优化；Phase 4 不在授权范围。
 
 | ID | 工作 | 验收产物 |
 | --- | --- | --- |
-| G2-A | TD-005 收尾：≥30 分钟 1080p 资源曲线、GPU 专用内存、轮询 CPU/功耗、高精度 timer 回退 | 有界/无增长证据或限定接受；仅当创建成本不可接受时评审 generation 资源池（保持已发布快照不复写） |
-| G2-B | 统一 Authorization Envelope：Service 与 Broker 只有一个 lease 真相源 | ADR 先行（真相源归属、字段、完整性保护、版本/deadline/generation、IPC 契约）；Broker 只执行 envelope，伪造/过期/重放/降级负向证据 |
+| G2-A | 已关闭：1800 秒资源曲线与轮询 CPU 有证据；功耗与 timer 回退未测，由维护者限定接受 | 关闭依据：[长测记录](evidence/p2-broker/resource-stability.md)；不作功耗或 timer 回退性能承诺 |
+| G2-B | 已完成实现与限定验证：Service 是唯一 lease 真相源；Broker 每帧交付前消费 envelope | [ADR 0009](ADR/0009-authorization-envelope.md)；Rust/C++ 共享固定格式、真实 pipe 客户端身份绑定、Service 对端检查、帧/累计字节预算、过期/撤销拒绝与策略层伪造/重放/降级负向用例；SCM/LocalService 与 Authenticode 留在后续证据范围 |
 | G2-C | Publisher / Authenticode enrollment | 在 `ProcessIdentity` 上加签名/发布者校验；未签名、错发布者、篡改映像负向证据；正向需测试证书，未具备时写未测 |
 | G2-D | 在途撤销 + crash / device-loss 故障矩阵 | 依赖 G2-B；撤销与在途帧、producer/consumer/Broker 崩溃、device removed/reset 的终态、清理和"已交付像素不可追回"边界逐项证据 |
 
-G2-A–D 和 P2-05 通过前不推进 Service → Broker 接管或 G3；完成数量不等于 Gate 通过。
+G2-A 已按限定接受关闭；G2-B 已完成实现与限定验证，G2-C/D 和 P2-05 通过前不宣称 G2 通过、不推进 G3。Phase 4 不在本轮授权范围；完成数量不等于 Gate 通过。
 
 ### P2-05 G2 评审
 

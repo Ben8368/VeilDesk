@@ -32,6 +32,8 @@ PID、路径、进程名不能单独充当身份凭据；不能把“同一用�
 撤销无法召回消费者已保存的像素，也不能在未验证时承诺旧资源马上不可读。
 本原型不提供任意外部客户端注册、代码签名认证或防止同用户进程篡改/窃取句柄的边界；通用授权能力仍需 G2 审查。
 
+G2-B 设计与实现见 [ADR 0009](ADR/0009-authorization-envelope.md)：SecureService 是唯一 lease 真相源，Broker 仅执行版本化 envelope。Broker 通过独立本机授权管道取票；Service 从已连接管道取得真实客户端 PID，并核对创建时间、会话、SID 和映像路径摘要；正式 SCM 路径只接受安装目录中的 CaptureBroker。Broker 验证 Service 对端身份/路径，且每帧在交付任何共享资源前向 Service 原子消费所有适用 scope。帧数和累计字节预算、nonce、epoch、generation、deadline 与精确 envelope 状态均由 Service 执行。console smoke 使用显式测试对端参数，不等同正式 LocalService 部署证据。Publisher/Authenticode enrollment、SCM ACL/生命周期与同用户恶意映像防护仍未完成；G2 仍未通过。
+
 ## 后续生命周期
 
 Phase 3 收敛服务重启、策略持久化和 broker generation；服务不可用时的拒绝/恢复必须可解释。

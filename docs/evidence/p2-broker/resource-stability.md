@@ -46,7 +46,7 @@ CLI 有界：duration 1..7200s、fps 1..240、width 216..4096、height 36..4096�
 - 热身后单核 CPU 中位数约为 Broker 3.75–4.37%、Producer 4.06–4.37%、Viewer 7.80–8.12%。本次未测电功耗，也未测高精度 timer 不可用时的回退性能；因此仅完成长时资源/轮询 CPU 曲线，不据此宣告 G2-A 通过或清偿 TD-005。未观察到要求引入 generation 资源池的创建成本证据。
 - 长测前 `scripts/verify.ps1` 通过：Release CTest 11/11、Rust 策略 4/4、console IPC 和预览检查通过。完整曲线与摘要只保存在上述 ignored 目录，不入 Git。
 
-当前结果：资源曲线初审未发现热身后持续增长；电功耗与高精度 timer 回退仍待验证。G2-A：未通过/待完整评审；G2-B/C/D 未完成；G2/G3/G4 未通过。
+当前结果：资源曲线初审未发现热身后持续增长；完整长测及轮询 CPU 已记录。电功耗与高精度 timer 回退未测。2026-10-10，维护者明确限定接受上述未测项，正式关闭 G2-A 审查；不作功耗或 timer 回退性能承诺。该接受不关闭 RISK-005 其他兼容/故障项，不代表 G2 通过。G2-B 已完成限定实现与验证；G2-C 尚未启动，G2/G3/G4 未通过。
 
 启动前完整 Release verify 通过（8/8）；随后 Debug 与 Release 捕获基线失效，截图只有桌面背景。自有 HWND visible=true / affinity=0，input/thread desktop=Default；前台激活未接受；后续 WTSINFOEX 只读探针确认 session flags=LOCKED，screensaver=false。不能把锁屏条件当作保护通过。复现脚本记录只读桌面状态，不尝试解锁。恢复 UNLOCKED 后完整 verify PASS：Release CTest 10/10、Debug build/CTest 10/10；Rust 1.85.1/stable fmt、clippy -D warnings、策略 4/4，以及 console IPC PASS。新增 BenchmarkSmoke/BenchmarkAnalysis 两种构建均通过；这些不替代待执行的完整长测。加入进度诊断后 Release/Debug CTest 11/11、完整 verify 与 Rust/console IPC 再次通过；ProgressWatchdogProbe 的模拟停顿/正常 join 仅为诊断测试。
 
@@ -62,7 +62,7 @@ CLI 有界：duration 1..7200s、fps 1..240、width 216..4096、height 36..4096�
 | 4c41d98 | clean | 71.11 | 4163 | FAIL / Viewer ACK timeout，progress frame-complete=4439 |
 | aa1547c | clean | 157.67 | 9147 | FAIL / broker consumer/viewer ACK timeout；同时出现全屏快捷键、resize 和 modal move/resize 事件 |
 
-前五次运行均无完成的 benchmark.json；完整结果见上方成功运行记录。该次完整曲线已经填补“缺少真实 1800 秒数据”的证据缺口，但不能替代功耗、高精度 timer 回退或其他 GPU/系统环境验证。G2-A 仍待完整评审，G2-B/C/D 未开始，不进入 G3/Phase 4。
+前五次运行均无完成的 benchmark.json；完整结果见上方成功运行记录。该次完整曲线已经填补“缺少真实 1800 秒数据”的证据缺口，但不能替代功耗、高精度 timer 回退或其他 GPU/系统环境验证。维护者已限定接受这两项未测内容并关闭 G2-A；G2-B 已完成，G2-C/D 未完成，不进入 G3 或 Phase 4。
 
 ## 官方 API 依据
 

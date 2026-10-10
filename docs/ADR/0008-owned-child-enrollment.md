@@ -17,8 +17,7 @@ Broker 会话 generation 来自 BCryptGenRandom，非零、排除最大值，最
 ## 后果
 
 减少 PID 复用和错误主体寻址面；启动前读取真实身份并不证明二进制未被替换或进程未被篡改。
-随机 generation 是会话隔离字段，不是授权 token 或 signed lease；当前授权仍是操作员显式启动的自有工具原型。Service 的策略内核/STATUS/REVOKE 尚未成为 Broker 授权事实源；不能称 G2/G3 收敛。
-下一步需要真实 publisher/enrollment policy、versioned subject/session/scope/lease_id/issued_at/expires_at/nonce envelope 和 Service 强制关系；G2 可接受前不启动 Phase 3。
+随机 generation 本身不是授权 token 或 signed lease。G2-B 已通过 ADR 0009 将版本化 envelope 与 Service 强制关系接入限定自有工具原型；该决策不验证 publisher。下一步 G2-C 实现真实 Publisher/Authenticode enrollment，G2-D 验证在途撤销和故障矩阵；这不代表 G2/G3 收敛。
 
 ## 替代方案
 

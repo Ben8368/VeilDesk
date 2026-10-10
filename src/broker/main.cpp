@@ -1,4 +1,5 @@
 #include "broker/Channel.h"
+#include "broker/AuthorizationClient.h"
 #include "broker/Benchmark.h"
 #include "broker/SharedFrame.h"
 #include "broker/FrameReadback.h"
@@ -29,6 +30,7 @@ int Producer(HANDLE input, HANDLE output, bool exitOnFrame) {
         if (request.kind == Kind::Stop) { return 0; }
         if (!lease.granted) { lease.granted = true; lease.deadline = request.deadline; lease.generation = request.generation;
             lease.pixelWidth = request.pixelWidth; lease.pixelHeight = request.pixelHeight; }
+        if (lease.granted && request.generation == lease.generation && request.deadline > lease.deadline && request.frame == lease.lastFrame + 1) { lease.deadline = request.deadline; }
         if (lease.Check(request, GetTickCount64()) != Status::Ok || request.handle != 0) { return 1; }
         if (exitOnFrame) { Logger::Error(L"TEST: producer exits before delivering frame"); return 1; }
         Handle frame;
@@ -66,6 +68,7 @@ int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destinati
         if (!lease.granted) {
             lease.granted = true; lease.deadline = message.deadline; lease.generation = message.generation;
         }
+        if (lease.granted && message.generation == lease.generation && message.deadline > lease.deadline && message.frame == lease.lastFrame + 1) { lease.deadline = message.deadline; }
         const auto status = lease.Check(message, GetTickCount64());
         Message ack = message; ack.kind = Kind::Ack; ack.handle = 0; ack.status = status;
         std::vector<BYTE> pixels;
@@ -157,7 +160,11 @@ int wmain(int argc, wchar_t** argv) {
     BenchmarkConfig benchmarkConfig; bool benchmarkOptions = false;
     bool producerExit = false, consumerExit = false, exitOnFrame = false;
     bool benchmark = false, child = false, producerMode = false, stall = false, tests = false, viewer = false, expired = false, deny = false;
+    bool forgedEnvelope = false, downgradedScope = false, undersizedBudget = false, replayAuthorization = false;
     HANDLE input = nullptr, output = nullptr;
+    std::wstring authorizationPipe;
+    bool allowConsoleServicePeer = false;
+    DWORD consoleServicePid = 0;
     try {
         for (int i = 1; i < argc; ++i) {
             const std::wstring arg(argv[i]);
@@ -172,6 +179,13 @@ int wmain(int argc, wchar_t** argv) {
             else if (arg == L"--viewer") { viewer = true; }
             else if (arg == L"--expired") { expired = true; }
             else if (arg == L"--deny") { deny = true; }
+            else if (arg == L"--forged-envelope") { forgedEnvelope = true; }
+            else if (arg == L"--downgraded-scope") { downgradedScope = true; }
+            else if (arg == L"--undersized-budget") { undersizedBudget = true; }
+            else if (arg == L"--replay-authorization") { replayAuthorization = true; }
+            else if (arg == L"--authorization-pipe" && i + 1 < argc) { authorizationPipe = argv[++i]; }
+            else if (arg == L"--allow-console-service-peer") { allowConsoleServicePeer = true; }
+            else if (arg == L"--console-service-pid" && i + 1 < argc) { consoleServicePid = static_cast<DWORD>(std::stoul(argv[++i])); }
             else if ((arg == L"--duration-seconds" || arg == L"--width" || arg == L"--height" ||
                 arg == L"--fps" || arg == L"--sample-seconds") && i + 1 < argc) {
                 const std::wstring value(argv[++i]); std::size_t consumed = 0;
@@ -217,8 +231,36 @@ int wmain(int argc, wchar_t** argv) {
         if (viewer && !display.Start((std::filesystem::path(executable).parent_path() / L"SecureViewer.exe").wstring(),
             (benchmark ? L"--shared-source --run-seconds " + std::to_wstring(benchmarkConfig.durationSeconds + 30) +
                 L" --benchmark-display --benchmark-size " + std::to_wstring(benchmarkConfig.pixelWidth) + L" " + std::to_wstring(benchmarkConfig.pixelHeight) : L"--shared-source --run-seconds 15 --capture-ready"), ChildRole::View)) { return 1; }
-        Lease lease{1, GetTickCount64() + (expired ? 0 : (benchmark ? (benchmarkConfig.durationSeconds + 30ULL) * 1000 : 30000)), 0, !deny, false};
-        if (!CreateSessionGeneration(lease.generation)) { return 1; }
+        if (authorizationPipe.empty()) {
+            authorizationPipe = L"\\\\.\\pipe\\VeilDesk.SecureService.authorization.v1";
+        }
+        if (allowConsoleServicePeer != (consoleServicePid != 0)) { Logger::Error(L"Console peer mode requires an explicit service PID"); return 1; }
+        AuthorizationClient authorization(authorizationPipe, allowConsoleServicePeer, consoleServicePid);
+        if (deny) { Logger::Error(L"No Service grant requested (--deny); fail closed"); return 0; }
+        const std::uint32_t pixelWidth = benchmark ? benchmarkConfig.pixelWidth : width;
+        const std::uint32_t pixelHeight = benchmark ? benchmarkConfig.pixelHeight : height;
+        const std::uint64_t byteCount64 = static_cast<std::uint64_t>(pixelWidth) * pixelHeight * 4;
+        if (!byteCount64 || byteCount64 > authorizationMaxBytes) { Logger::Error(L"Frame byte budget outside Authorization Envelope bounds"); return 1; }
+        std::uint32_t authorizationBatchFrames = 0;
+        const auto issueBatch = [&](std::uint32_t remaining, std::vector<std::pair<AuthorizationEnvelope, std::uint32_t>>& issued) {
+            const std::uint32_t duration = expired ? 1 : 30000;
+            authorizationBatchFrames = (std::min)(remaining, authorizationMaxBytes / static_cast<std::uint32_t>(byteCount64));
+            if (!authorizationBatchFrames) { return false; }
+            auto byteBudget = authorizationBatchFrames * static_cast<std::uint32_t>(byteCount64);
+            if (undersizedBudget) { byteBudget = static_cast<std::uint32_t>(byteCount64) - 1; }
+            auto issue = [&](std::uint32_t scope) {
+                AuthorizationEnvelope envelope;
+                if (!authorization.Issue(downgradedScope ? 99 : scope, duration, authorizationBatchFrames, byteBudget, envelope)) { return false; }
+                if (forgedEnvelope) { ++envelope.subject.pid; }
+                issued.emplace_back(envelope, static_cast<std::uint32_t>(byteCount64));
+                return true;
+            };
+            return (benchmark || issue(authorizationScopeRecord)) && (!viewer || issue(authorizationScopeView));
+        };
+        std::vector<std::pair<AuthorizationEnvelope, std::uint32_t>> authorizationLeases;
+        if (!issueBatch(frames, authorizationLeases) || authorizationLeases.empty()) { Logger::Error(L"SecureService grant unavailable; no local fallback"); return 1; }
+        Lease lease{authorizationLeases.front().first.generation, authorizationLeases.front().first.deadline, 0, true, false};
+        std::uint32_t authorizationBaseFrame = 0;
         if (benchmark) { lease.pixelWidth = benchmarkConfig.pixelWidth; lease.pixelHeight = benchmarkConfig.pixelHeight; }
         SharedFrameConsumer brokerGpu;
         if (!brokerGpu.Initialize()) { return 1; }
@@ -233,12 +275,37 @@ int wmain(int argc, wchar_t** argv) {
                 if (!metrics->Pace(slot++)) { break; }
                 if (!metrics->Sample(producer.process.get(), display.process.get())) { return 1; }
             }
+            const auto now = GetTickCount64();
+            if (((frame - authorizationBaseFrame) > authorizationBatchFrames || now + 5000 >= lease.deadline) && frame > 1) {
+                authorizationLeases.clear();
+                if (!issueBatch(frames - frame + 1, authorizationLeases) || authorizationLeases.empty()) { Logger::Error(L"SecureService lease renewal failed; stopping delivery"); break; }
+                lease.generation = authorizationLeases.front().first.generation;
+                lease.deadline = authorizationLeases.front().first.deadline;
+                lease.lastFrame = frame - 1;
+                authorizationBaseFrame = frame - 1;
+            }
+            if (replayAuthorization && delivered == 1 && frame == 2) {
+                if (authorization.ConsumeFrame(authorizationLeases, frame - 1 - authorizationBaseFrame)) {
+                    Logger::Error(L"SecureService accepted a replayed frame authorization"); return 1;
+                }
+                Logger::Info(L"SecureService rejected replayed frame authorization before delivery"); break;
+            }
             const auto deliveryStart = Benchmark::Clock::now();
             Message message; message.frame = frame; message.deadline = lease.deadline; message.generation = lease.generation;
             message.pixelWidth = lease.pixelWidth; message.pixelHeight = lease.pixelHeight;
-            if (revokeAfter && delivered == revokeAfter) { lease.Revoke(); }
+            if (revokeAfter && delivered == revokeAfter && !authorization.RevokeAll()) { Logger::Error(L"SecureService revoke failed; stopping delivery"); break; }
+            bool consumed = false;
+            if (expired && frame == 1) {
+                Sleep(10);
+                consumed = authorization.ConsumeFrame(authorizationLeases, frame - authorizationBaseFrame);
+                if (!consumed) { Logger::Info(L"SecureService rejected expired frame authorization; no resource delivered"); break; }
+            }
             const auto decision = lease.Check(message, GetTickCount64());
             if (decision != Status::Ok) { Logger::Info(L"Lease terminal status=" + std::to_wstring(static_cast<unsigned>(decision))); break; }
+            if (!consumed && !authorization.ConsumeFrame(authorizationLeases, frame - authorizationBaseFrame)) {
+                Logger::Info(L"SecureService rejected frame authorization; no resource delivered");
+                break;
+            }
             if (!Send(producer.input.get(), message)) { return 1; }
             Message produced;
             if (!Receive(producer.output.get(), produced, 2000, L"broker produced frame") || produced.frame != message.frame ||

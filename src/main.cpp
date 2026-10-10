@@ -143,6 +143,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                     sourceLease.granted = true; sourceLease.generation = message.generation; sourceLease.deadline = message.deadline;
                     sourceLease.pixelWidth = message.pixelWidth; sourceLease.pixelHeight = message.pixelHeight;
                 }
+                else if (message.generation == sourceLease.generation && message.deadline > sourceLease.deadline && message.frame == sourceLease.lastFrame + 1) {
+                    sourceLease.deadline = message.deadline;
+                }
                 const auto decision = sourceLease.Check(message, GetTickCount64());
                 if (decision != veil::broker::Status::Ok) {
                     veil::broker::Handle rejected(reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(message.handle))); return false;

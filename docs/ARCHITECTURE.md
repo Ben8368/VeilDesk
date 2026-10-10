@@ -32,7 +32,7 @@ NT 纹理句柄不继承，仅 DuplicateHandle 至已启动且保留的子进程
 子进程挂起启动，真实 PID/creation time/SID/session/image 与自有角色匹配后恢复；交付前重核 retained 对象，publisher/signature NotVerified；增量见 [enrollment 证据](evidence/p2-broker/enrollment.md)。
 Viewer 在 Renderer 同一 device 上 OpenSharedResource1，校验 LUID/descriptor，锁内 GPU copy 至本地 snapshot，再 copy 到保护 swap chain；无 CPU 帧接口。尺寸按原生像素裁切，resize 不 readback。
 Producer GPU shader 生成测试图案；Recorder/test 的 readback 在独立库，SecureViewer 不链接该库；独立 producer 不采用第三方应用画面。
-Rust 服务是独立 SCM/诊断 IPC 原型，尚未对 Broker 策略强制执行；Workspace 尚无 Guest 显示通路。
+Rust 服务维护唯一内存 lease 状态；独立授权管道将真实 Broker 身份绑定到 envelope，并在 Broker 逐帧交付资源前核验和消费预算。console Service→Broker 已有端到端验证；SCM/LocalService 安装与发布者认证未验收。Workspace 尚无 Guest 显示通路。
 契约见 [CAPTURE_CONTRACT](CAPTURE_CONTRACT.md)，证据与限制见 [Context](../CONTEXT.md)。
 
 ## 后续目标数据流（设计）

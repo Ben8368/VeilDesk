@@ -1,14 +1,14 @@
 # 当前状态
 
 > **最后确认：** 2026-10-10
-> **阶段：** Phase 2 / G2-A 长时资源稳定性；G2/G3/G4 未通过。
+> **阶段：** Phase 2 / G2-B 已完成限定实现与验证；G2-A 已由维护者限定接受关闭；G2/G3/G4 未通过。
 > **当前范围：** 自有内容源、受控消费者与后续阶段基础设施，尚非完整 Secure Workspace。
 
 ## 当前事实
 
 - SecureViewer 与 CaptureTest 已实现；C++20 / Win32 / D3D11，普通 GDI 捕获和 WIC PNG 编码。
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
-- 维护者本轮授权按 G2-A→B→C→D 收敛安全边界；G2 PASS 后才进入 G3，禁止继续 Phase 4，系统变更仍独立授权。
+- 维护者本轮授权按 G2-A→B→C→D 收敛安全边界；G2-A 已按限定接受关闭，G2-B 已完成实现与限定验证，当前推进 G2-C；G2 PASS 后才进入 G3，Phase 4 不在范围内，系统变更仍独立授权。
 - 独立 producer / Broker / Viewer / PNG 消费者原型已实现；限定结果见 [Broker 证据](docs/evidence/p2-broker/README.md)。
 - Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；见 [服务证据](docs/evidence/p3-service/README.md)。
 - Workspace 探针和 VM 生命周期脚本已实现；Guest 显示/输入尚未实现，见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
@@ -17,21 +17,22 @@
 
 ## 近期优先级
 
-1. G2-A：已完成一次 1800 秒 1080p 资源长测，热身后资源曲线未触发调查阈值；电功耗与高精度 timer 回退性能仍未验证，G2-A 未通过/待完整评审；详情见[长测记录](docs/evidence/p2-broker/resource-stability.md)。benchmark 专用窗口已固定尺寸并屏蔽全屏/移动快捷操作，未引入 pool、未进入 G2-B。
-2. 按 [Blueprint G2 剩余收敛](docs/DEVELOPMENT_BLUEPRINT.md) G2-A→D：长时资源、统一 Authorization Envelope、Authenticode enrollment、在途撤销/故障矩阵；[自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现。
-3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
+1. 待启动 G2-C：Publisher / Authenticode enrollment，补齐 Service 与 Broker 映像发布者校验和负向证据。
+2. G2-D：在途撤销与 crash/device-loss 故障矩阵；不优化 GPU，不开展 Phase 4。
+3. G2-C/D 后执行 P2-05 汇总评审；G2 未通过前不转入后续阶段。
 
 ## 当前风险与限制
 
 - OS / GPU / 捕获工具矩阵尚不完整；细节只在 [RISK-001](docs/RISK_REGISTER.md) 和 [Phase 1 证据](tests/VERIFICATION.md)。
-- G2/G3/G4 均未通过；服务尚未约束 Broker，VMConnect 不构成受控 Guest 显示通路。
+- G2/G3/G4 均未通过；console Service 已约束 Broker，SCM 未验收；VMConnect 不提供 Guest 显示通路。
 - 本机未提权安装服务、启用 Hyper-V、创建 VM 或修改 WDAC/VBS/HVCI；维护者确认暂时没有测试机/Guest 镜像。
 - 实现妥协独立记录在 [TECH_DEBT](docs/TECH_DEBT.md)，不以实现数量关闭风险。
 
 ## 最近验证
 
-- G2-A：benchmark 窗口交互约束后完整运行 1800.059 秒；104286/104286 已生产帧显示，3714 个目标时隙未产生帧；CPU readbacks/uploads 0/0，热身后 337 点资源趋势无调查阈值告警。测试前完整 verify 通过；功耗和 timer 回退性能仍缺，G2-A 未通过，见 [长测记录](docs/evidence/p2-broker/resource-stability.md)。
-- TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒由约 18FPS 提升到约 59FPS（3556–3566/3600），长时资源 Gate 未通过，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
+- G2-A：完整 1800.059 秒资源/CPU 长测已完成，电功耗与 timer 回退性能未测；维护者限定接受并关闭 G2-A，相关承诺限制见 [长测记录](docs/evidence/p2-broker/resource-stability.md)。
+- G2-B：Service 绑定真实 pipe 客户端身份；Broker 每帧先原子消费 Service envelope，再交付纹理。端到端批准及伪造/过期/重放/预算/降级/撤销拒绝覆盖；Rust 8/8、C++ Release、CTest 12/12、Clippy 通过。SCM 与签名者未验，G2 仍未通过，详见[服务证据](docs/evidence/p3-service/README.md)。
+- TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒由约 18FPS 提升到约 59FPS（3556–3566/3600）。长时资源已记录，G2-A 未测项经限定接受关闭，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)与[长测记录](docs/evidence/p2-broker/resource-stability.md)。
 
 - Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；结果见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。
 - Phase 1 基线与历史治理记录保留原有证据，不将新构建替代真实捕获或隔离验收。
