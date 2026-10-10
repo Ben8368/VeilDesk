@@ -17,6 +17,7 @@ ADR 说明长期决定及理由；Gate 与执行顺序分别在 Roadmap / Bluepr
 | [0007](0007-gpu-viewer.md) | 已接受 | TD-003 同 adapter GPU 输入、不可变快照与 Recorder CPU 边界 |
 | [0008](0008-owned-child-enrollment.md) | 提议 | 自有工具挂起启动、真实身份快照、retained object 与撤销代际 |
 | [0009](0009-authorization-envelope.md) | 已接受（设计边界） | SecureService 唯一 lease 真相源与 Broker 执行 Authorization Envelope |
+| [0010](0010-portable-core-foundation.md) | 已接受（限定基础） | Windows 主平台；分离可移植 wire/策略核心，为 macOS 后续扩展准备测试基础 |
 
 0001 的接受依据为维护者本轮移植治理并首提交的指令；0002/0003 的依据为既有 Phase 1 要求与本轮记录后续阶段的指令。
 0004–0006、0008 记录实际原型的待评审决策；不能借开发授权或既有 0003 视作正式安全设计/Gate 已接受。0009 接受并实现 G2-B 授权边界；G2-C/D 与 G2 Gate 仍未完成。

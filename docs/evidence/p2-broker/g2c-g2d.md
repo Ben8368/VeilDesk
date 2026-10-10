@@ -59,3 +59,13 @@ powershell -NoProfile -File scripts/benchmark-zero-copy.ps1 `
 审查发现原 CMake pin 检查使用了不受 CMake 正则支持的 `{64}` 重复语法；现改为长度与十六进制字符分开检查，并加入 `CMakePresets.json` 统一 Windows x64 Release 配置。Rust Service 现在也在首次接纳 Broker 时执行 WinVerifyTrust 与同一 SHA-256 pin；C++ 与 Service 的 pin 都从 `VEILDESK_AUTHENTICODE_PUBLISHER_SHA256` 构建环境读取，空 pin 继续拒绝。Broker/Service 的签名验证结果在保留 PID、创建时间与映像路径后缓存，逐帧只复核实际进程身份，避免每帧调用 WinVerifyTrust。
 
 本次改动工作区为 macOS arm64，未安装 CMake、Windows SDK 或 MSVC，且没有项目签名证书；新增 Rust WinTrust FFI、Windows CMake preset、正负 pin 配置以及签名性能路径均待 Windows x64 验证，不据源码改动宣称 G2-C 通过。
+
+## Rust WinTrust 编译问题修复（2026-10-10）
+
+基线 `1ebba22`，环境 macOS arm64、Rust 1.96.0；添加 `x86_64-pc-windows-msvc` 标准库目标进行交叉类型检查，不执行 Windows 程序。锁定依赖仍为 `windows-sys 0.61.2`。
+
+- 修复前，Windows x64 全目标 `cargo check` 实际失败：`Foundation::BOOL` 不存在，WinTrust provider helper 缺少 `Win32_Security_Cryptography_Catalog` / `Win32_Security_Cryptography_Sip` feature，`WinVerifyTrust` 的 GUID 可变指针与 `c_void` 参数不匹配。
+- 修复移除多余 BOOL 导入/转换、补齐两个 feature，使用局部可变 GUID 和显式数据指针转换；签名校验与空 pin 拒绝语义保持。结构体初始化改用 initializer，解决严格 Clippy 的 `field_reassign_with_default` 错误。
+- `cargo check --manifest-path service/Cargo.toml --locked --offline --target x86_64-pc-windows-msvc --all-targets` 通过；随后 `cargo clippy` 使用相同参数并追加 `-- -D warnings` 通过，包含库、程序和测试目标。
+- `cargo fmt --manifest-path service/Cargo.toml -- --check` 通过。临时 harness 直接引用原 `envelope.rs` / `policy.rs`，以 `rustc --edition=2021 --test` 在 macOS 运行既有测试，8/8 通过；不包含 Windows FFI / IPC。
+- `scripts/verify.ps1` 与 `scripts/governance-docs-check.ps1` 的规定命令均因缺少 `powershell` 退出 127，未执行。C++/MSVC、Windows 链接、签名运行、console IPC、SCM 与 GPU 场景仍未验证；此次检查不改变 G2-C/G2 Gate。

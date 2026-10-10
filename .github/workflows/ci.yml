@@ -121,16 +121,33 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  portable:
+    name: Portable core / macOS
+    needs: governance
+    runs-on: macos-14
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify portable wire and policy core
+        run: bash scripts/verify-portable.sh
+
   required:
     name: CI required
     if: ${{ always() }}
-    needs: [governance, cpp, rust]
+    needs: [governance, cpp, rust, portable]
     runs-on: windows-2022
     timeout-minutes: 5
     env:
       GOVERNANCE_RESULT: ${{ needs.governance.result }}
       CPP_RESULT: ${{ needs.cpp.result }}
       RUST_RESULT: ${{ needs.rust.result }}
+      PORTABLE_RESULT: ${{ needs.portable.result }}
       HAS_SERVICE: ${{ needs.governance.outputs.has_service }}
     steps:
       - name: Check all required outcomes
@@ -140,9 +157,11 @@ jobs:
           }
           $expectedRust = if ($env:HAS_SERVICE -eq 'true') { 'success' } else { 'skipped' }
           if ($env:RUST_RESULT -ne $expectedRust) { throw "Rust result=$env:RUST_RESULT expected=$expectedRust" }
+          if ($env:PORTABLE_RESULT -ne 'success') { throw "Portable core result=$env:PORTABLE_RESULT" }
           @"
           ## Verified scope
           - Governance, workflow syntax, MSVC 2022 x64 Release/Debug and available noninteractive CTest checks.
           - Rust result: $env:RUST_RESULT; service manifest present: $env:HAS_SERVICE.
+          - macOS portable wire/policy core: $env:PORTABLE_RESULT; no macOS runtime backend is exercised.
           - Desktop/GPU capture, WDA, SCM installation, Hyper-V and Guest isolation are not exercised by hosted CI.
           "@ >> $env:GITHUB_STEP_SUMMARY

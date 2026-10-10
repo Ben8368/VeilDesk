@@ -1,7 +1,9 @@
 use crate::envelope::{Subject, ROLE_BROKER};
 use std::{mem::size_of, ptr::null_mut};
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, LocalFree, FILETIME, HANDLE, INVALID_HANDLE_VALUE},
+    Foundation::{
+        CloseHandle, LocalFree, ERROR_INSUFFICIENT_BUFFER, FILETIME, HANDLE, INVALID_HANDLE_VALUE,
+    },
     Security::{
         Authorization::ConvertSidToStringSidW,
         Cryptography::{
@@ -24,6 +26,20 @@ impl Drop for OwnedHandle {
     fn drop(&mut self) {
         unsafe {
             CloseHandle(self.0);
+        }
+    }
+}
+
+struct OwnedLocalString(*mut u16);
+impl Drop for OwnedLocalString {
+    fn drop(&mut self) {
+        unsafe {
+            if !LocalFree(self.0.cast()).is_null() {
+                eprintln!(
+                    "LocalFree(SID string) failed: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
         }
     }
 }
@@ -51,13 +67,19 @@ fn hash(bytes: &[u8]) -> std::io::Result<[u8; 32]> {
             digest.len() as u32,
         )
     };
-    unsafe {
-        windows_sys::Win32::Security::Cryptography::BCryptCloseAlgorithmProvider(algorithm, 0);
-    }
+    let close_status = unsafe {
+        windows_sys::Win32::Security::Cryptography::BCryptCloseAlgorithmProvider(algorithm, 0)
+    };
     if status != 0 {
         return Err(std::io::Error::other(format!(
             "BCryptHash NTSTATUS=0x{:08x}",
             status as u32
+        )));
+    }
+    if close_status != 0 {
+        return Err(std::io::Error::other(format!(
+            "BCryptCloseAlgorithmProvider NTSTATUS=0x{:08x}",
+            close_status as u32
         )));
     }
     Ok(digest)
@@ -134,13 +156,21 @@ pub unsafe fn pipe_client_subject(
         return Err(std::io::Error::last_os_error());
     }
     let mut needed = 0_u32;
-    unsafe {
-        GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut needed);
+    if unsafe { GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut needed) } != 0 {
+        return Err(std::io::Error::other(
+            "TokenUser size query unexpectedly succeeded",
+        ));
+    }
+    let size_error = std::io::Error::last_os_error();
+    if size_error.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+        return Err(size_error);
     }
     if needed < size_of::<TOKEN_USER>() as u32 || needed > 65536 {
         return Err(std::io::Error::other("TokenUser size outside bound"));
     }
-    let mut storage = vec![0_u8; needed as usize];
+    // TOKEN_USER contains pointers; a byte vector does not guarantee its alignment.
+    let mut storage =
+        vec![TOKEN_USER::default(); (needed as usize).div_ceil(size_of::<TOKEN_USER>())];
     if unsafe {
         GetTokenInformation(
             token.0,
@@ -153,22 +183,30 @@ pub unsafe fn pipe_client_subject(
     {
         return Err(std::io::Error::last_os_error());
     }
-    let token_user = unsafe { &*storage.as_ptr().cast::<TOKEN_USER>() };
+    if returned < size_of::<TOKEN_USER>() as u32 || returned > needed {
+        return Err(std::io::Error::other(
+            "TokenUser returned size outside bound",
+        ));
+    }
+    let token_user = &storage[0];
     let sid_attributes: SID_AND_ATTRIBUTES = token_user.User;
     let mut sid_string = null_mut();
     if unsafe { ConvertSidToStringSidW(sid_attributes.Sid, &mut sid_string) } == 0 {
         return Err(std::io::Error::last_os_error());
     }
-    let sid_len = unsafe { (0..1024).position(|index| *sid_string.add(index) == 0) }
+    if sid_string.is_null() {
+        return Err(std::io::Error::other(
+            "ConvertSidToStringSidW returned no string",
+        ));
+    }
+    let sid_string = OwnedLocalString(sid_string);
+    let sid_len = unsafe { (0..1024).position(|index| *sid_string.0.add(index) == 0) }
         .ok_or_else(|| std::io::Error::other("SID string exceeds bound"))?;
-    let sid_words = unsafe { std::slice::from_raw_parts(sid_string, sid_len) };
+    let sid_words = unsafe { std::slice::from_raw_parts(sid_string.0, sid_len) };
     let sid_bytes = sid_words
         .iter()
         .flat_map(|word| word.to_le_bytes())
         .collect::<Vec<_>>();
-    unsafe {
-        LocalFree(sid_string.cast());
-    }
     let mut image_bytes = Vec::with_capacity(image.len() * 2);
     for word in image {
         image_bytes.extend_from_slice(&word.to_le_bytes());

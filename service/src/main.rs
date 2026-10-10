@@ -1,9 +1,15 @@
+#[cfg(windows)]
 use veil_secure_service::policy;
+#[cfg(windows)]
 mod scm;
+#[cfg(windows)]
 mod transport;
+#[cfg(windows)]
 use std::sync::Mutex;
+#[cfg(windows)]
 use std::time::Duration;
 
+#[cfg(windows)]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
@@ -52,9 +58,18 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+#[cfg(windows)]
 fn main() {
     if let Err(error) = run() {
         eprintln!("SecureService failed: {error}");
         std::process::exit(1);
     }
+}
+
+#[cfg(not(windows))]
+fn main() {
+    eprintln!(
+        "SecureService runtime requires Windows; only the policy/envelope library is portable."
+    );
+    std::process::exit(1);
 }

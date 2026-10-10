@@ -13,6 +13,9 @@ function Invoke-CheckedTool([string]$Executable, [string[]]$ToolArguments) {
 }
 
 try {
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        throw 'Windows product verification requires Windows x64/MSVC; use bash scripts/verify-portable.sh for portable core tests.'
+    }
     & (Join-Path $PSScriptRoot 'governance-docs-check.ps1') -Root $rootPath
     if ($LASTEXITCODE -ne 0) { throw 'Governance validation failed' }
     & (Join-Path $rootPath 'tests/governance-smoke.ps1')

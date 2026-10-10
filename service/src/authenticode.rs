@@ -3,20 +3,17 @@ use std::{
     ptr::{null, null_mut},
     sync::{Mutex, OnceLock},
 };
-use windows_sys::Win32::{
-    Foundation::BOOL,
-    Security::{
-        Cryptography::{
-            BCryptHash, BCryptOpenAlgorithmProvider, BCRYPT_ALG_HANDLE, BCRYPT_SHA256_ALGORITHM,
-            CERT_CONTEXT,
-        },
-        WinTrust::{
-            WTHelperGetProvSignerFromChain, WTHelperProvDataFromStateData, WinVerifyTrust,
-            CRYPT_PROVIDER_CERT, CRYPT_PROVIDER_DATA, CRYPT_PROVIDER_SGNR,
-            WINTRUST_ACTION_GENERIC_VERIFY_V2, WINTRUST_DATA, WINTRUST_DATA_0, WINTRUST_FILE_INFO,
-            WTD_CACHE_ONLY_URL_RETRIEVAL, WTD_CHOICE_FILE, WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT,
-            WTD_REVOKE_WHOLECHAIN, WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE,
-        },
+use windows_sys::Win32::Security::{
+    Cryptography::{
+        BCryptHash, BCryptOpenAlgorithmProvider, BCRYPT_ALG_HANDLE, BCRYPT_SHA256_ALGORITHM,
+        CERT_CONTEXT,
+    },
+    WinTrust::{
+        WTHelperGetProvSignerFromChain, WTHelperProvDataFromStateData, WinVerifyTrust,
+        CRYPT_PROVIDER_CERT, CRYPT_PROVIDER_DATA, CRYPT_PROVIDER_SGNR,
+        WINTRUST_ACTION_GENERIC_VERIFY_V2, WINTRUST_DATA, WINTRUST_DATA_0, WINTRUST_FILE_INFO,
+        WTD_CACHE_ONLY_URL_RETRIEVAL, WTD_CHOICE_FILE, WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT,
+        WTD_REVOKE_WHOLECHAIN, WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE,
     },
 };
 
@@ -25,14 +22,17 @@ static VERIFIED_BROKER: OnceLock<Mutex<Option<VerifiedIdentity>>> = OnceLock::ne
 
 struct WinTrustStateGuard {
     data: *mut WINTRUST_DATA,
-    action: *const windows_sys::core::GUID,
+    action: *mut windows_sys::core::GUID,
 }
 
 impl Drop for WinTrustStateGuard {
     fn drop(&mut self) {
         unsafe {
             (*self.data).dwStateAction = WTD_STATEACTION_CLOSE;
-            let _ = WinVerifyTrust(null_mut(), self.action, self.data);
+            let status = WinVerifyTrust(null_mut(), self.action, self.data.cast());
+            if status != 0 {
+                eprintln!("WinVerifyTrust state close failed: 0x{:08x}", status as u32);
+            }
         }
     }
 }
@@ -64,13 +64,19 @@ fn certificate_sha256(certificate: &CERT_CONTEXT) -> std::io::Result<String> {
             digest.len() as u32,
         )
     };
-    unsafe {
-        windows_sys::Win32::Security::Cryptography::BCryptCloseAlgorithmProvider(algorithm, 0);
-    }
+    let close_status = unsafe {
+        windows_sys::Win32::Security::Cryptography::BCryptCloseAlgorithmProvider(algorithm, 0)
+    };
     if status < 0 {
         return Err(std::io::Error::other(format!(
             "BCryptHash signer certificate NTSTATUS=0x{:08x}",
             status as u32
+        )));
+    }
+    if close_status < 0 {
+        return Err(std::io::Error::other(format!(
+            "BCryptCloseAlgorithmProvider NTSTATUS=0x{:08x}",
+            close_status as u32
         )));
     }
     let mut thumbprint = String::with_capacity(64);
@@ -92,19 +98,27 @@ fn signer_thumbprint(path: &str) -> std::io::Result<String> {
         hFile: null_mut(),
         pgKnownSubject: null_mut(),
     };
-    let mut data = WINTRUST_DATA::default();
-    data.cbStruct = size_of::<WINTRUST_DATA>() as u32;
-    data.dwUIChoice = WTD_UI_NONE;
-    data.fdwRevocationChecks = WTD_REVOKE_WHOLECHAIN;
-    data.dwUnionChoice = WTD_CHOICE_FILE;
-    data.Anonymous = WINTRUST_DATA_0 { pFile: &mut file };
-    data.dwStateAction = WTD_STATEACTION_VERIFY;
-    data.dwProvFlags = WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT | WTD_CACHE_ONLY_URL_RETRIEVAL;
-    let action = &WINTRUST_ACTION_GENERIC_VERIFY_V2;
-    let status = unsafe { WinVerifyTrust(null_mut(), action, &mut data) };
+    let mut data = WINTRUST_DATA {
+        cbStruct: size_of::<WINTRUST_DATA>() as u32,
+        dwUIChoice: WTD_UI_NONE,
+        fdwRevocationChecks: WTD_REVOKE_WHOLECHAIN,
+        dwUnionChoice: WTD_CHOICE_FILE,
+        Anonymous: WINTRUST_DATA_0 { pFile: &mut file },
+        dwStateAction: WTD_STATEACTION_VERIFY,
+        dwProvFlags: WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT | WTD_CACHE_ONLY_URL_RETRIEVAL,
+        ..Default::default()
+    };
+    let mut action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    let status = unsafe {
+        WinVerifyTrust(
+            null_mut(),
+            &mut action,
+            (&mut data as *mut WINTRUST_DATA).cast(),
+        )
+    };
     let _cleanup = WinTrustStateGuard {
         data: &mut data,
-        action,
+        action: &mut action,
     };
     if status != 0 {
         return Err(std::io::Error::other(format!(
@@ -120,7 +134,7 @@ fn signer_thumbprint(path: &str) -> std::io::Result<String> {
         ));
     }
     let signer: *mut CRYPT_PROVIDER_SGNR =
-        unsafe { WTHelperGetProvSignerFromChain(provider, 0, 0 as BOOL, 0) };
+        unsafe { WTHelperGetProvSignerFromChain(provider, 0, 0, 0) };
     if signer.is_null() || unsafe { (*signer).csCertChain == 0 || (*signer).pasCertChain.is_null() }
     {
         return Err(std::io::Error::other(

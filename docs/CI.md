@@ -9,7 +9,8 @@
 | Governance and workflow syntax | 文档预算/链接/UTF-8/LF、治理与 Git 署名 hook 正负回归、固定 actionlint 1.7.12 |
 | C++ x64 / Release、Debug | windows-2022、VS 2022、x64、两配置编译；跳过桌面/GPU CTest |
 | Rust / 1.85.1、stable | 有 service/Cargo.toml 时运行；fmt、clippy -D warnings、锁定依赖测试/Release、真实 console IPC 和运维预览 |
-| CI required | 汇总全部结果；只有没有服务 manifest 时接受 Rust skipped，其他失败/取消不通过 |
+| Portable core / macOS | macos-14、C++ envelope fixture、Rust 策略与非 Windows 服务拒绝；不验证 macOS 平台后端 |
+| CI required | 汇总 Windows 与 macOS 核心结果；只有没有服务 manifest 时接受 Windows Rust skipped，其他失败/取消不通过 |
 
 push main、pull_request main、merge_group、手动和周一 10:17（Asia/Shanghai）触发。PR 不设路径过滤，避免 required check 被省略；同一 PR 的新运行取消旧运行。
 所有外部 Actions 固定完整 commit SHA；checkout 不保留凭据，GITHUB_TOKEN 只读。不使用 pull_request_target、secrets、提权服务安装、VM 创建或安全策略修改。

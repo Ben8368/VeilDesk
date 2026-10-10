@@ -54,6 +54,8 @@ Windows 显示限制负责 Viewer 输出；Broker 授权负责内容源向消费
 
 ## 演进约束
 
+可移植基础见 [ADR 0010](ADR/0010-portable-core-foundation.md)：C++ `VeilAuthorization` 与 Rust `envelope` / `policy` 可以独立编译测试；Windows 负责 HWND/D3D11、WinTrust、身份、SCM 与管道。v1 wire 的 Windows 主体语义保持，未来 macOS 后端需要独立契约。非 Windows 服务运行明确拒绝；核心构建不代表 macOS 产品支持。
+
 - Phase 2 的 producer / Broker / Viewer 接口先收敛生命周期、同步、协议和权限，再扩大客户端。
 - Phase 3 的 Rust 服务不接管 D3D11 渲染；负责策略和已审计 IPC，默认权限必须有理由。
 - Phase 4 的 Guest / Host 信任边界单独验证，显示传输、剪贴板、文件、音频、外设逐项评估。

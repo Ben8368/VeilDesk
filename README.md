@@ -95,7 +95,7 @@ Broker 生产运行必须由安装在 `%ProgramFiles%\VeilDesk\CaptureBroker.exe
 
 父目录需先存在。Broker 启动独立自有 producer、PNG 消费者和可选 Viewer，纹理不通过截图 API 获得。共享模式要求 WDA 确认，不能通过关闭 WDA 放行可信输出。
 每帧保存为 `frame-N.png`；拒绝覆盖既有目录/文件。PNG 序列是受控测试输出，不是编码视频；内容和日志默认本地留存。
-原型只支持启动树内的固定程序，没有外部进程注册/按 PID 授权；publisher enrollment 仍未实现。旧快照可以留存，撤销不能追回已交付像素。`tests/broker-smoke.ps1` 会启动限时 console Service 并验证真实 Broker 授权路径。
+原型只支持启动树内的固定程序，没有外部进程注册/按 PID 授权；publisher 校验已实现，但项目证书 enrollment 尚未完成。旧快照可以留存，撤销不能追回已交付像素。`tests/broker-smoke.ps1` 会启动限时 console Service 并验证真实 Broker 授权路径。
 
 Rust 服务独立需要 Rust 1.85+ MSVC 工具链，依赖由 Cargo.lock 锁定。运行 console 验证不会安装服务：
 
@@ -106,11 +106,25 @@ powershell -NoProfile -File scripts/workspace-probe.ps1
 powershell -NoProfile -File scripts/workspace.ps1 -Action Plan
 ```
 
-服务 IPC 当前仅 STATUS/REVOKE，授予默认拒绝；尚不约束独立 Broker。运维脚本默认预览；服务部署和 VM 生命周期 Apply 路径未在隔离机器验收。
+诊断 IPC 仅 STATUS/REVOKE，GRANT 默认拒绝；独立授权管道已约束 Broker，签名构建与项目证书 enrollment 的限制见 Context。运维脚本默认预览；服务部署和 VM 生命周期 Apply 路径未在隔离机器验收。
 Workspace 尚无 Guest 显示/输入协议，本机 Hyper-V 管理前提和镜像缺口见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
 完整 `scripts/verify.ps1` 包含 C++/CTest、Rust 策略/console IPC 和只读/预览检查；`-SkipInteractive` 显式跳过 GPU/桌面项，`-SkipService` 显式跳过 Rust，均不能记成阶段验收。
 
 ## Run
+
+### macOS 可移植基础
+
+Windows 是主产品环境；macOS 目前可以原生构建测试 C++ envelope 编解码与 Rust 策略库。需要 CMake 3.24+、C++20 编译器、Make 和 Rust 1.85+，运行：
+
+```bash
+bash scripts/verify-portable.sh
+```
+
+独立入口为 `cmake --preset portable-core`、`cmake --build --preset portable-core`、`ctest --preset portable-core` 与 `cargo test --manifest-path service/Cargo.toml --locked`。Windows 默认产品构建保持；在 Windows 只测试核心也可显式配置 `-DVEILDESK_BUILD_WINDOWS_APPS=OFF`。
+
+非 Windows `veil-secure-service` 二进制运行会明确返回错误。尚无 macOS Viewer、捕获、身份认证、服务或 Workspace 后端；v1 envelope 的 Windows 主体语义保持。范围见 [ADR 0010](docs/ADR/0010-portable-core-foundation.md)，本机证据见[可移植核心](docs/evidence/portable-core/README.md)。
+
+### Windows 运行
 
 先启动 Viewer，然后在另一个终端启动测试程序：
 

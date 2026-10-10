@@ -17,6 +17,7 @@ VeilDesk 的长期目标是 Windows Secure Workspace：敏感内容通过受控�
 - Rust SecureService 管理策略/身份/生命周期；不能单靠提升权限保证授权安全。
 - Hyper-V 或独立 Workspace 中接入 Chrome / Edge、微信、QQ、飞书、Office 和其他 Windows 应用；每类逐项验证。
 - WDAC / VBS / HVCI 为候选增强，必须分别确认环境、运维影响和实测价值。
+- Windows 仍是主产品环境；macOS 仅准备可移植协议/策略与测试基础，后端能力待独立设计与验证，见 [ADR 0010](ADR/0010-portable-core-foundation.md)。
 
 ## 非目标
 
