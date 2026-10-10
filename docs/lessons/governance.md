@@ -6,3 +6,4 @@
 - 初始化仓库前审查忽略规则；`capture*.png` 不会排除 baseline/protected 等其他文件名，按产物目录排除。
 - 保留上游版本和迁移差异，不把参考项目技术栈/阶段门禁直接套在不同产品上。
 - 治理回归夹具只复制 requiredFiles 与 docs Markdown；文档新增 GitHub 配置链接时同步 requiredFiles，否则真仓库通过但夹具会因缺少链接目标被拒绝。
+- 源码或治理改动后、客观验证前必须输出固定 `🚦 Audit Report` 模板；红黄绿分级与覆盖维度以 `docs/AI_RULES.md` 为准，不能只写一句“已审查”。

@@ -39,7 +39,7 @@ Windows 提供的捕获限制与真正的安全边界不同。WDA 和 DISPLAY_ON
 
 需要 Windows 10/11 x64、Visual Studio 2022 或 Build Tools 2022、MSVC v143、Windows SDK 10.0.19041+ 和 CMake 3.24+。
 VS Installer 中安装“使用 C++ 的桌面开发”，包含 x64 编译工具和 SDK。
-无需 Qt、Electron、.NET 应用框架、Rust、内核驱动或第三方 GUI 框架。
+C++ Viewer / CaptureTest / Broker 无需 Qt、Electron、.NET 应用框架、内核驱动或第三方 GUI 框架；Phase 3 Rust 服务是独立 Cargo crate，见下文，不链入 C++ 构建。
 
 在 x64 Native Tools Command Prompt for VS 2022 或已配置 CMake 的终端运行：
 

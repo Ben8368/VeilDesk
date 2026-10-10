@@ -6,6 +6,7 @@
 ## 开发与验证
 
 - 按 [DEVELOPMENT_GUIDE](docs/DEVELOPMENT_GUIDE.md) 使用 Windows x64 / MSVC 工具链。
+- 源码或治理改动后、客观验证前按 [AI_RULES](docs/AI_RULES.md) 输出 `🚦 Audit Report`。
 - 纯治理修改：`powershell -NoProfile -File scripts/governance-docs-check.ps1`。
 - 源码或构建入口修改：`powershell -NoProfile -File scripts/verify.ps1`；交互桌面限制见 [QUALITY](docs/QUALITY.md)。
 - 捕获、IPC、授权、服务权限或虚拟化的长期变更先形成 ADR 和负向验证方案。

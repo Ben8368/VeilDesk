@@ -1,7 +1,8 @@
 # GitHub CI / Dependabot 验证记录
 
-日期：2026-10-10（Asia/Shanghai）。远端版本 `88d1f3b65cd4c4b1385090b3963bb16e03b7bca4`；本地产品验证使用该版本加上一轮未提交 Phase 2–4 工作树。
+日期：2026-10-10（Asia/Shanghai）。远端版本 `88d1f3b65cd4c4b1385090b3963bb16e03b7bca4`；当时本地产品验证使用该版本加上一轮未入库的 Phase 2–4 工作树。
 本轮提交范围仅 workflow、dependabot.yml、CI 配置说明、治理 requiredFiles；不包含上一轮产品源码、截图、日志或构建物。
+后续说明：Phase 2–4 源码已进入本地 Git 历史，仍未 push 到远端；本记录描述的 CI 轮次范围不变。
 
 ## 实际验证
 

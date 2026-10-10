@@ -21,7 +21,7 @@
 | 已产生的实现妥协与偿还条件 | [TECH_DEBT](TECH_DEBT.md) |
 | 长期决定及理由 | [ADR](ADR/README.md) |
 | 威胁模型与安全政策 | [SECURITY](../SECURITY.md) |
-| AI 审查、Git message / trailer | [AI_RULES](AI_RULES.md) |
+| 红绿灯审查、Git message / trailer | [AI_RULES](AI_RULES.md) |
 | 原始 Phase 1 验证结论与覆盖范围 | [tests/VERIFICATION](../tests/VERIFICATION.md) |
 | 历史评审与关闭条目 | [archive](archive/README.md) 与 Git 历史 |
 
@@ -62,4 +62,4 @@ powershell -NoProfile -File scripts/governance-docs-check.ps1
 5. 权限、身份、IPC、数据流、技术栈或虚拟化长期决定需要 ADR；提议不当作接受或实现。
 6. 历史评审、关闭风险与偿债记录按日期归档；当前入口只保留跳转。
 7. 新 lesson 只记录会影响下次行动的结论。
-8. 提交前检查链接、状态、预算和保密边界；执行顺序与 trailer 遵守 AI_RULES。
+8. 提交前检查链接、状态、预算和保密边界；`🚦 Audit Report`、执行顺序与 trailer 遵守 AI_RULES。

@@ -8,7 +8,7 @@
 - 产品依赖限于 Win32、D3D11、DXGI、Direct2D/DirectWrite、WIC/DWM 等 Windows SDK 能力。
 - UNICODE / _UNICODE、/W4、/permissive-、UTF-8 源码；文本统一 LF。
 - HWND 生命周期在 window，device/swap chain 在 graphics，WDA 在 security，普通捕获在 capture，共享诊断在 common。
-- future Broker / service 不提前用空源码、空目标或假成功函数占位。
+- Broker 在 `src/broker/`，Rust 服务在 `service/`；新增能力不得用空目标或假成功函数占位。
 
 ## 资源与错误
 
@@ -26,7 +26,7 @@
 GitHub-hosted Windows CI 只验证治理和 Release 构建；窗口/捕获必须使用具名交互桌面。
 新增测试验证真实行为/边界，不写仅复述实现的断言；新增检查入口需正负路径验证。
 
-## 未来语言与部署
+## 服务语言与部署
 
 Rust 服务原型通过独立 Cargo crate 接入，依赖锁定在 `service/Cargo.lock`；具体验证入口见 README。C++ 构建不依赖 Rust 链接。
 Hyper-V、WDAC/VBS/HVCI 不作为本地构建先决条件。新阶段安装/系统变更与源码实现分别说明授权范围。

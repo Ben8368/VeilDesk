@@ -26,7 +26,7 @@
 
 ## 工作闭环
 
-1. 确认范围、事实源和需验证的结论，按 [AI_RULES](docs/AI_RULES.md) 修改与审查。
+1. 确认范围、事实源和需验证的结论；源码或治理改动后按 [AI_RULES](docs/AI_RULES.md) 输出 `🚦 Audit Report`，再验证。
 2. 文档修改运行 `powershell -NoProfile -File scripts/governance-docs-check.ps1`；源码修改使用 `scripts/verify.ps1`。
 3. 不编造验证结果；未执行项说明原因。构建成功不能替代捕获、隔离、兼容性或安全证据。
 4. 事实变化只回填对应权威文档；当前状态放 Context，计划放 Roadmap，工作包放 Blueprint，经验放 Lessons。
