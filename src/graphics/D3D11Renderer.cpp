@@ -1,5 +1,6 @@
 #include "graphics/D3D11Renderer.h"
 #include "common/Logger.h"
+#include "common/ProgressWatchdog.h"
 #include "common/CapturePattern.h"
 #include <d2d1_1helper.h>
 #include <cmath>
@@ -7,6 +8,7 @@
 #include <sstream>
 
 namespace veil {
+void D3D11Renderer::Checkpoint(const char* phase) noexcept { if (progress_) { progress_->Checkpoint(phase); } }
 D3D11Renderer::~D3D11Renderer() {
     ReleaseTargets();
     if (context_) { context_->ClearState(); context_->Flush(); }
@@ -122,15 +124,18 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
     const float seconds = std::chrono::duration<float>(std::chrono::steady_clock::now() - start_).count();
     const float color[]{0.08F + 0.04F * std::sin(seconds), 0.12F + 0.06F * std::sin(seconds * 0.7F),
         0.22F + 0.1F * std::sin(seconds * 0.5F), 1.0F};
+    Checkpoint("clear-render-target");
     context_->ClearRenderTargetView(renderTarget_.Get(), color);
     if (source_) {
         Microsoft::WRL::ComPtr<ID3D11Texture2D> buffer;
         if (!Logger::CheckHR(swapChain_->GetBuffer(0, IID_PPV_ARGS(buffer.GetAddressOf())), L"GetBuffer(shared source)")) { return false; }
         D3D11_TEXTURE2D_DESC desc{}; source_->GetDesc(&desc);
         const D3D11_BOX region{0, 0, 0, (std::min)(width_, desc.Width), (std::min)(height_, desc.Height), 1};
+        Checkpoint("copy-to-swapchain");
         context_->CopySubresourceRegion(buffer.Get(), 0, 0, 0, 0, source_.Get(), 0, &region);
         if (stats_) { ++stats_->gpuCopies; }
     }
+    Checkpoint("d2d-draw");
     textContext_->BeginDraw();
     textContext_->SetTransform(D2D1::Matrix3x2F::Identity());
     textContext_->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -158,6 +163,7 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
     const std::wstring text = body.str();
     textContext_->DrawText(text.c_str(), static_cast<UINT32>(text.size()), bodyFormat_.Get(),
         D2D1::RectF(24, 138, right, static_cast<float>(height_) / scale - 16.0F), brush_.Get());
+    Checkpoint("d2d-end-draw");
     const HRESULT draw = textContext_->EndDraw();
     if (draw == D2DERR_RECREATE_TARGET) {
         Logger::Warn(L"D2D target lost; recreating targets");
@@ -165,6 +171,7 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
         return CreateTargets();
     }
     if (!Logger::CheckHR(draw, L"D2D EndDraw")) { return false; }
+    Checkpoint("present");
     const HRESULT present = swapChain_->Present(1, 0);
     if (present == DXGI_STATUS_OCCLUDED) {
         if (!occluded_) { Logger::Info(L"SwapChain occluded"); }
@@ -189,7 +196,7 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
         return false;
     }
     ++frame_;
-    if (frame_ == 1 || frame_ % 300 == 0) { Logger::Info(L"Presented frame " + std::to_wstring(frame_)); }
+    if (frame_ == 1 || frame_ % 300 == 0) { Checkpoint("frame-log"); Logger::Info(L"Presented frame " + std::to_wstring(frame_)); }
     return true;
 }
 bool D3D11Renderer::SetSourceTexture(ID3D11Texture2D* texture) {

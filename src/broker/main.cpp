@@ -198,6 +198,7 @@ int wmain(int argc, wchar_t** argv) {
         if ((benchmarkOptions && !benchmark) || !benchmarkConfig.Valid()) { Logger::Error(L"Invalid benchmark configuration"); return 1; }
         if (benchmark) { frames = benchmarkConfig.Slots(); }
         if (tests) { return ProtocolTests() ? 0 : 1; }
+        if (producerMode || child) { Logger::SetExternalSinks(false); }
         if (producerMode) {
             if (child || !destination.empty()) { return 1; }
             return Producer(input, output, exitOnFrame);

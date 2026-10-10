@@ -1,4 +1,5 @@
 #include "common/Logger.h"
+#include "common/ProgressWatchdog.h"
 #include "common/SystemInfo.h"
 #include "window/SecureWindow.h"
 #include "graphics/D3D11Renderer.h"
@@ -10,7 +11,7 @@
 #include "broker/SharedFrame.h"
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
-    veil::Logger::Initialize(L"SecureViewer.log");
+    veil::Logger::Initialize(L"SecureViewer.log", false);
     veil::LogSystemInfo();
     unsigned int runSeconds = 0;
     unsigned benchmarkWidth = 1920, benchmarkHeight = 1080;
@@ -78,7 +79,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     if (!protection) { veil::Logger::Warn(L"UNPROTECTED diagnostic baseline explicitly selected"); }
     veil::broker::ZeroCopyStats stats;
     struct StatsExit { veil::broker::ZeroCopyStats& stats; bool active; ~StatsExit() { if (active) { stats.Log(); } } } statsExit{stats, sharedSource};
+    std::unique_ptr<veil::ProgressWatchdog> progress;
+    if (benchmarkDisplay) {
+        try { progress = std::make_unique<veil::ProgressWatchdog>(L"Viewer-progress.log"); }
+        catch (const std::exception&) { veil::Logger::Error(L"Benchmark progress observer initialization failed"); return 1; }
+    }
     veil::D3D11Renderer renderer;
+    renderer.SetProgress(progress.get());
     if (sharedSource) { renderer.SetStats(&stats); }
     renderer.SetProtectionStatus(status.enabled ? L"WDA_EXCLUDEFROMCAPTURE: API enabled" : L"WDA: NOT CONFIRMED / UNPROTECTED");
     if (!renderer.Initialize(window.Handle(), protection && displayOnly, simulateDisplayOnlyFailure, sharedSource)) { return 1; }
@@ -110,11 +117,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     bool stopped = false;
     const int result = window.Run([&] {
         if (sharedSource) {
+            if (progress) { progress->Checkpoint("dispatch-source"); }
             DWORD available = 0;
             if (!PeekNamedPipe(channelInput.get(), nullptr, 0, nullptr, &available, nullptr)) {
                 veil::Logger::Win32Error(L"Viewer PeekNamedPipe", GetLastError()); return false;
             }
             if (available >= sizeof(veil::broker::Message)) {
+                if (progress) { progress->Checkpoint("receive-source"); }
                 veil::broker::Message message;
                 if (!veil::broker::Receive(channelInput.get(), message, 1000, L"viewer source message")) { return false; }
                 if (message.kind == veil::broker::Kind::Stop) { stopped = true; PostQuitMessage(0); return true; }
@@ -127,15 +136,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                     veil::broker::Handle rejected(reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(message.handle))); return false;
                 }
                 veil::broker::SharedTexture texture;
-                if (!source.OpenFrame(message, texture) || !renderer.SetSourceTexture(texture.Get()) || !texture.Close()) { return false; }
+                if (progress) { progress->Checkpoint("open-shared", message.frame); }
+                if (!source.OpenFrame(message, texture)) { return false; }
+                if (progress) { progress->Checkpoint("copy-shared-to-snapshot"); }
+                if (!renderer.SetSourceTexture(texture.Get())) { return false; }
+                if (progress) { progress->Checkpoint("release-shared"); }
+                if (!texture.Close()) { return false; }
                 message.kind = veil::broker::Kind::Ack; message.handle = 0;
                 const auto previouslyPresented = renderer.FrameCount();
                 if (!renderer.RenderFrame(window.Dpi())) { return false; }
                 if (renderer.FrameCount() == previouslyPresented) {
                     veil::Logger::Error(L"Location: Viewer Present; Cause: source frame not presented (occluded/recovery); Action: deny ACK"); return false;
                 }
+                if (progress) { progress->Checkpoint("send-ack"); }
                 if (!veil::broker::Send(channelOutput.get(), message)) { return false; }
                 sourceLease.lastFrame = message.frame;
+                if (progress) { progress->Checkpoint("frame-complete"); }
                 return true;
             }
             if (sourceLease.granted && GetTickCount64() >= sourceLease.deadline) { return false; }

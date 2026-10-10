@@ -10,21 +10,23 @@
 namespace {
 std::mutex logMutex;
 std::ofstream logFile;
+bool useExternalSinks = true;
 }
 namespace veil {
-void Logger::Initialize(const std::wstring& file) {
+void Logger::Initialize(const std::wstring& file, bool externalSinks) {
     std::scoped_lock lock(logMutex);
+    useExternalSinks = externalSinks;
     logFile.open(std::filesystem::path(file), std::ios::trunc);
     if (!logFile) {
         OutputDebugStringW(L"[ERROR] Cannot open log file\n");
         std::wcerr << L"[ERROR] Cannot open log file: " << file << L'\n';
     }
 }
+void Logger::SetExternalSinks(bool enabled) { std::scoped_lock lock(logMutex); useExternalSinks = enabled; }
 void Logger::Write(std::wstring_view level, std::wstring_view message) {
     std::scoped_lock lock(logMutex);
     const std::wstring line = L"[" + std::wstring(level) + L"] " + std::wstring(message) + L"\n";
-    OutputDebugStringW(line.c_str());
-    std::wcout << line << std::flush;
+    if (useExternalSinks) { OutputDebugStringW(line.c_str()); std::wcout << line << std::flush; }
     const int count = WideCharToMultiByte(CP_UTF8, 0, line.data(), static_cast<int>(line.size()), nullptr, 0, nullptr, nullptr);
     if (count > 0 && logFile) {
         std::string utf8(static_cast<size_t>(count), '\0');

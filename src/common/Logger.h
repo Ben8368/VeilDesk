@@ -6,7 +6,8 @@
 namespace veil {
 class Logger final {
 public:
-    static void Initialize(const std::wstring& file);
+    static void Initialize(const std::wstring& file, bool externalSinks = true);
+    static void SetExternalSinks(bool enabled);
     static void Info(std::wstring_view message);
     static void Warn(std::wstring_view message);
     static void Error(std::wstring_view message);

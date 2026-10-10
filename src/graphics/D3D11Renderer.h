@@ -12,6 +12,7 @@
 #include "broker/SharedFrame.h"
 
 namespace veil {
+class ProgressWatchdog;
 class D3D11Renderer final {
 public:
     D3D11Renderer() = default;
@@ -24,6 +25,7 @@ public:
     bool RenderFrame(UINT dpi);
     bool SetSourceTexture(ID3D11Texture2D* texture);
     ID3D11Device* Device() const noexcept { return device_.Get(); }
+    void SetProgress(ProgressWatchdog* observer) noexcept { progress_ = observer; }
     void SetStats(broker::ZeroCopyStats* stats) noexcept { stats_ = stats; }
     void SetProtectionStatus(std::wstring status) { protectionStatus_ = std::move(status); }
     std::uint64_t FrameCount() const noexcept { return frame_; }
@@ -32,6 +34,8 @@ private:
     friend struct D3D11RendererTestAccess;
     bool CreateTargets();
     void ReleaseTargets();
+    void Checkpoint(const char* phase) noexcept;
+    ProgressWatchdog* progress_ = nullptr;
     broker::ZeroCopyStats* stats_ = nullptr;
     HWND hwnd_ = nullptr;
     UINT width_ = 0;
