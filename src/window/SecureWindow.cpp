@@ -160,6 +160,12 @@ LRESULT CALLBACK SecureWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam
 }
 LRESULT SecureWindow::ProcessMessage(UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
+    case WM_ENTERSIZEMOVE:
+        Logger::Info(L"Window entered modal move/resize; frame dispatch can pause");
+        break;
+    case WM_EXITSIZEMOVE:
+        Logger::Info(L"Window exited modal move/resize");
+        break;
     case WM_SIZE:
         minimized_ = wparam == SIZE_MINIMIZED;
         if (!minimized_ && resize_ && !resize_(LOWORD(lparam), HIWORD(lparam))) { failed_ = true; PostQuitMessage(1); }

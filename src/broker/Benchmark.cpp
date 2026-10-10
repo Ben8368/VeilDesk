@@ -69,7 +69,8 @@ void Benchmark::Record(Stage stage, Clock::time_point started) {
     stageMs_[static_cast<unsigned>(stage)] += std::chrono::duration<double, std::milli>(Clock::now() - started).count();
 }
 bool Benchmark::Sample(HANDLE producer, HANDLE viewer, bool force) {
-    const double seconds = std::chrono::duration<double>(Clock::now() - started_).count();
+    const auto sampleStarted = Clock::now();
+    const double seconds = std::chrono::duration<double>(sampleStarted - started_).count();
     if (!force && !resources_.empty() && seconds - resources_.back().seconds < config_.sampleSeconds) { return true; }
     if (!ActiveUnlockedSession()) { return false; }
     std::array<ResourceSample, 3> rows{};
@@ -90,6 +91,8 @@ bool Benchmark::Sample(HANDLE producer, HANDLE viewer, bool force) {
         resources_.push_back(row);
     }
     samples_.flush();
+    const auto sampleMs = std::chrono::duration<double, std::milli>(Clock::now() - sampleStarted).count();
+    if (sampleMs >= 100) { Logger::Warn(L"Benchmark resource sample stalled; duration_ms=" + std::to_wstring(sampleMs)); }
     return samples_.good();
 }
 bool Benchmark::Save(const std::wstring& adapter) const {

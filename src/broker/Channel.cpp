@@ -5,7 +5,7 @@
 #include <filesystem>
 
 namespace veil::broker {
-bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs) {
+bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs, const wchar_t* context) {
     const auto end = GetTickCount64() + timeoutMs;
     thread_local PreciseTimer poll;
     DWORD available = 0;
@@ -25,7 +25,7 @@ bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs) {
         }
         poll.Wait(1);
     }
-    Logger::Error(L"Protocol deadline exceeded"); return false;
+    Logger::Error(std::wstring(L"Protocol deadline exceeded; context=") + context + L"; budget_ms=" + std::to_wstring(timeoutMs)); return false;
 }
 bool Send(HANDLE pipe, const Message& message) {
     // One small outstanding request per pipe; ACK required before the next write.
@@ -70,13 +70,19 @@ bool Child::Start(const std::wstring& executable, const std::wstring& options, C
         Logger::Win32Error(L"InitializeProcThreadAttributeList", GetLastError()); return false;
     }
     struct Cleanup { LPPROC_THREAD_ATTRIBUTE_LIST value; ~Cleanup() { DeleteProcThreadAttributeList(value); } } cleanup{attributes};
-    HANDLE list[]{read.get(), write.get()};
+    Handle nullIo(CreateFileW(L"NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    if (!nullIo) { Logger::Win32Error(L"CreateFileW(child standard I/O NUL)", GetLastError()); return false; }
+    HANDLE list[]{read.get(), write.get(), nullIo.get()};
     if (!UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, list, sizeof(list), nullptr, nullptr)) {
         Logger::Win32Error(L"UpdateProcThreadAttribute(handle list)", GetLastError()); return false;
     }
     STARTUPINFOEXW startup{};
     startup.StartupInfo.cb = sizeof(startup);
-    startup.StartupInfo.dwFlags = STARTF_USESHOWWINDOW;
+    startup.StartupInfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+    startup.StartupInfo.hStdInput = nullIo.get();
+    startup.StartupInfo.hStdOutput = nullIo.get();
+    startup.StartupInfo.hStdError = nullIo.get();
     startup.StartupInfo.wShowWindow = SW_HIDE;
     startup.lpAttributeList = attributes;
     auto command = L"\"" + executable + L"\" " + options + L" --channel " +

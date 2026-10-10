@@ -8,6 +8,12 @@ int wmain(int argc, wchar_t** argv) {
     try {
         if (argc == 5 && std::wstring(argv[1]) == L"--identity-child" && std::wstring(argv[2]) == L"--channel") {
             Handle input(reinterpret_cast<HANDLE>(std::stoull(argv[3]))), output(reinterpret_cast<HANDLE>(std::stoull(argv[4])));
+            for (DWORD standard : {STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE}) {
+                if (GetFileType(GetStdHandle(standard)) != FILE_TYPE_CHAR) { return 1; }
+            }
+            // More than the 4096-byte business pipe budget: stdout must never be that pipe.
+            const char diagnostic[16384]{}; DWORD written = 0;
+            if (!WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), diagnostic, sizeof(diagnostic), &written, nullptr) || written != sizeof(diagnostic)) { return 1; }
             Message stop;
             return Receive(input.get(), stop, 5000) && stop.kind == Kind::Stop ? 0 : 1;
         }
@@ -40,7 +46,7 @@ int wmain(int argc, wchar_t** argv) {
         if (!Send(child.input.get(), stop) || !child.Finish() || MatchesRetainedProcess(retained.get(), identity)) { return 1; }
         std::uint64_t generation = 0;
         if (!CreateSessionGeneration(generation) || !generation || generation == (std::numeric_limits<std::uint64_t>::max)()) { return 1; }
-        std::wcout << L"ProcessIdentityProbe passed: real process/token identity, five forged snapshot rejections, own-tool enrollment before resume, exit denial, random session generation. Not a real PID reuse or publisher verification test.\n";
+        std::wcout << L"ProcessIdentityProbe passed: real process/token identity, explicit NUL standard I/O, five forged snapshot rejections, own-tool enrollment before resume, exit denial, random session generation. Not a real PID reuse or publisher verification test.\n";
         return 0;
     } catch (...) { return 1; }
 }

@@ -116,7 +116,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
             }
             if (available >= sizeof(veil::broker::Message)) {
                 veil::broker::Message message;
-                if (!veil::broker::Receive(channelInput.get(), message, 1000)) { return false; }
+                if (!veil::broker::Receive(channelInput.get(), message, 1000, L"viewer source message")) { return false; }
                 if (message.kind == veil::broker::Kind::Stop) { stopped = true; PostQuitMessage(0); return true; }
                 if (!sourceLease.granted) {
                     sourceLease.granted = true; sourceLease.generation = message.generation; sourceLease.deadline = message.deadline;

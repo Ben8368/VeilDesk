@@ -5,7 +5,7 @@
 #include <string>
 
 namespace veil::broker {
-bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs);
+bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs, const wchar_t* context = L"unspecified");
 bool Send(HANDLE pipe, const Message& message);
 struct Child {
     Handle process, input, output;

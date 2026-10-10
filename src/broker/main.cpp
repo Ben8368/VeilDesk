@@ -25,7 +25,7 @@ int Producer(HANDLE input, HANDLE output, bool exitOnFrame) {
     Lease lease;
     for (;;) {
         Message request;
-        if (!Receive(read.get(), request, 5000)) { return 1; }
+        if (!Receive(read.get(), request, 5000, L"producer next frame")) { return 1; }
         if (request.kind == Kind::Stop) { return 0; }
         if (!lease.granted) { lease.granted = true; lease.deadline = request.deadline; lease.generation = request.generation;
             lease.pixelWidth = request.pixelWidth; lease.pixelHeight = request.pixelHeight; }
@@ -37,7 +37,7 @@ int Producer(HANDLE input, HANDLE output, bool exitOnFrame) {
         request.adapterLow = gpu.Adapter().LowPart; request.adapterHigh = gpu.Adapter().HighPart;
         if (!Send(write.get(), request)) { return 1; }
         Message ack;
-        if (!Receive(read.get(), ack, 5000) || ack.kind != Kind::Ack || ack.status != Status::Ok || ack.handle != 0 ||
+        if (!Receive(read.get(), ack, 5000, L"producer frame ACK") || ack.kind != Kind::Ack || ack.status != Status::Ok || ack.handle != 0 ||
             ack.frame != request.frame || ack.generation != request.generation || ack.deadline != request.deadline) { return 1; }
         lease.lastFrame = request.frame;
     }
@@ -110,7 +110,7 @@ bool Deliver(Child& child, HANDLE shared, const Message& source) {
     request.handle = reinterpret_cast<std::uintptr_t>(remote);
     if (!Send(child.input.get(), request)) { return false; } // child termination closes undelivered duplicate
     Message ack;
-    if (!Receive(child.output.get(), ack, 2000)) { return false; }
+    if (!Receive(child.output.get(), ack, 2000, L"broker consumer/viewer ACK")) { return false; }
     if (ack.kind != Kind::Ack || ack.status != Status::Ok || ack.handle != 0 ||
         ack.generation != source.generation || ack.frame != source.frame || ack.deadline != source.deadline) {
         Logger::Error(L"ACK identity/frame/generation/status rejected"); return false;
@@ -240,7 +240,7 @@ int wmain(int argc, wchar_t** argv) {
             if (decision != Status::Ok) { Logger::Info(L"Lease terminal status=" + std::to_wstring(static_cast<unsigned>(decision))); break; }
             if (!Send(producer.input.get(), message)) { return 1; }
             Message produced;
-            if (!Receive(producer.output.get(), produced, 2000) || produced.frame != message.frame ||
+            if (!Receive(producer.output.get(), produced, 2000, L"broker produced frame") || produced.frame != message.frame ||
                 produced.kind != Kind::Frame || produced.status != Status::Ok || produced.generation != message.generation ||
                 produced.deadline != message.deadline || produced.pixelWidth != message.pixelWidth || produced.pixelHeight != message.pixelHeight || !produced.handle) { return 1; }
             if (benchmark) { metrics->Produced(); metrics->Record(Benchmark::Stage::Produce, deliveryStart); }
