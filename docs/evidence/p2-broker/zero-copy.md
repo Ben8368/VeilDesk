@@ -71,4 +71,6 @@ G2 未通过：身份/enrollment、统一服务授权事实源、在途撤销和
 
 后续 G2 身份/代际增量与剩余缺口见 [enrollment 证据](enrollment.md)，不将该增量当作性能复验。
 
+G2-B Service envelope 接线后的有效 50 秒 1080p/60 FPS 性能复验为 1556/3000 个时隙完成显示（31.09 FPS），平均 produce 25.005ms、平均 delivery 30.925ms，未达目标；零 CPU readback/upload 保持 0/0。样本及 Service 生命周期断言见 [G2-C/D 证据](g2c-g2d.md)。G2-B 前的约 60 FPS 数据不可外推到 Service 授权后的路径。
+
 G2-A 长测方法、判断标准与本轮资源记录见 [resource stability](resource-stability.md)；进行中的运行不构成长期稳定性证据。

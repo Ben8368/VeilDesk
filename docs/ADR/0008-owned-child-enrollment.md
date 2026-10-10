@@ -17,7 +17,7 @@ Broker 会话 generation 来自 BCryptGenRandom，非零、排除最大值，最
 ## 后果
 
 减少 PID 复用和错误主体寻址面；启动前读取真实身份并不证明二进制未被替换或进程未被篡改。
-随机 generation 本身不是授权 token 或 signed lease。G2-B 已通过 ADR 0009 将版本化 envelope 与 Service 强制关系接入限定自有工具原型；该决策不验证 publisher。下一步 G2-C 实现真实 Publisher/Authenticode enrollment，G2-D 验证在途撤销和故障矩阵；这不代表 G2/G3 收敛。
+随机 generation 本身不是授权 token 或 signed lease。G2-B 已通过 ADR 0009 将版本化 envelope 与 Service 强制关系接入限定自有工具原型。G2-C 已增加 WinVerifyTrust + 构建时 SHA-256 publisher pin，但 VeilDesk 项目测试证书缺失，实际项目 enrollment 未测；G2-D 故障矩阵已开始，这不代表 G2/G3 收敛。详细实测见 [G2-C/D 证据](../evidence/p2-broker/g2c-g2d.md)。
 
 ## 替代方案
 

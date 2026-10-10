@@ -4,6 +4,9 @@
 #include <sddl.h>
 #include <memory>
 #include <vector>
+#ifndef VEILDESK_AUTHENTICODE_PUBLISHER_SHA256
+#define VEILDESK_AUTHENTICODE_PUBLISHER_SHA256 L""
+#endif
 
 namespace veil::broker {
 bool ReadProcessIdentity(HANDLE process, ProcessIdentity& identity) {
@@ -44,6 +47,8 @@ bool ReadProcessIdentity(HANDLE process, ProcessIdentity& identity) {
     }
     const std::unique_ptr<wchar_t, decltype(&LocalFree)> cleanup(sid, &LocalFree);
     result.userSid = sid;
+    VerifyAuthenticodePublisher(result.imagePath, VEILDESK_AUTHENTICODE_PUBLISHER_SHA256,
+        result.publisher, result.publisherState);
     identity = std::move(result); return true;
 }
 bool SamePrincipal(const ProcessIdentity& a, const ProcessIdentity& b) noexcept {
@@ -62,8 +67,10 @@ bool MatchesRetainedProcess(HANDLE process, const ProcessIdentity& enrolled) {
     ProcessIdentity actual;
     if (!ReadProcessIdentity(process, actual)) { return false; }
     const bool matches = enrolled.pid && enrolled.creationTime && actual.pid == enrolled.pid &&
-        actual.creationTime == enrolled.creationTime && SamePrincipal(actual, enrolled) && SameImage(actual.imagePath, enrolled.imagePath);
-    if (!matches) { Logger::Error(L"Location: Identity; Cause: retained subject mismatch; Action: deny"); }
+        actual.creationTime == enrolled.creationTime && SamePrincipal(actual, enrolled) && SameImage(actual.imagePath, enrolled.imagePath) &&
+        enrolled.publisherState == PublisherState::Verified && actual.publisherState == PublisherState::Verified &&
+        !enrolled.publisher.empty() && actual.publisher == enrolled.publisher;
+    if (!matches) { Logger::Error(L"Location: Identity; Cause: retained subject or Authenticode publisher mismatch; Action: deny"); }
     return matches;
 }
 }

@@ -1,14 +1,14 @@
 # 当前状态
 
 > **最后确认：** 2026-10-10
-> **阶段：** Phase 2 / G2-B 已完成限定实现与验证；G2-A 已由维护者限定接受关闭；G2/G3/G4 未通过。
+> **阶段：** Phase 2 / G2-D 故障矩阵进行中；G2-C Authenticode 实现已通过平台签名样本验证，但 VeilDesk 发布者 enrollment 未完成；G2-A 已限定接受关闭；G2/G3/G4 未通过。
 > **当前范围：** 自有内容源、受控消费者与后续阶段基础设施，尚非完整 Secure Workspace。
 
 ## 当前事实
 
 - SecureViewer 与 CaptureTest 已实现；C++20 / Win32 / D3D11，普通 GDI 捕获和 WIC PNG 编码。
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
-- 维护者本轮授权按 G2-A→B→C→D 收敛安全边界；G2-A 已按限定接受关闭，G2-B 已完成实现与限定验证，当前推进 G2-C；G2 PASS 后才进入 G3，Phase 4 不在范围内，系统变更仍独立授权。
+- 维护者授权 G2-A→B→C→D；G2-A 限定关闭、G2-B 验证完成。G2-C pin 实现已做但缺项目证书；按要求已启动 G2-D。G2 未通过前不进 G3；Phase 4 和系统变更仍未授权。
 - 独立 producer / Broker / Viewer / PNG 消费者原型已实现；限定结果见 [Broker 证据](docs/evidence/p2-broker/README.md)。
 - Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；见 [服务证据](docs/evidence/p3-service/README.md)。
 - Workspace 探针和 VM 生命周期脚本已实现；Guest 显示/输入尚未实现，见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
@@ -17,9 +17,9 @@
 
 ## 近期优先级
 
-1. 待启动 G2-C：Publisher / Authenticode enrollment，补齐 Service 与 Broker 映像发布者校验和负向证据。
-2. G2-D：在途撤销与 crash/device-loss 故障矩阵；不优化 GPU，不开展 Phase 4。
-3. G2-C/D 后执行 P2-05 汇总评审；G2 未通过前不转入后续阶段。
+1. 继续 G2-D：验证在途撤销、Broker crash、device removed/reset。
+2. 获取 VeilDesk 测试证书，签署自有映像并验证 pin；项目 enrollment 未测。
+3. 调查授权路径吞吐（约 31 FPS），再做 P2-05；G2 未通过前不转阶段。
 
 ## 当前风险与限制
 
@@ -31,11 +31,11 @@
 ## 最近验证
 
 - G2-A：完整 1800.059 秒资源/CPU 长测已完成，电功耗与 timer 回退性能未测；维护者限定接受并关闭 G2-A，相关承诺限制见 [长测记录](docs/evidence/p2-broker/resource-stability.md)。
-- G2-B：Service 绑定真实 pipe 客户端身份；Broker 每帧先原子消费 Service envelope，再交付纹理。端到端批准及伪造/过期/重放/预算/降级/撤销拒绝覆盖；Rust 8/8、C++ Release、CTest 12/12、Clippy 通过。SCM 与签名者未验，G2 仍未通过，详见[服务证据](docs/evidence/p3-service/README.md)。
+- G2-B：Service 绑定真实 pipe 客户端身份；Broker 每帧先原子消费 Service envelope，再交付纹理。端到端批准及伪造/过期/重放/预算/降级/撤销拒绝覆盖。新增有效授权路径 50 秒性能复验约 31.1 FPS，未达 60 FPS 目标；详见[G2-C/D 与性能证据](docs/evidence/p2-broker/g2c-g2d.md)。
+- G2-C/D：WinVerifyTrust + 构建 pin 的 Authenticode 校验、签名负向和平台签名样本通过；项目测试证书缺失。G2-D producer/consumer 退出及 revoke-after-2 有有限证据，Viewer 场景 occluded，Broker crash/device-loss 未测；G2 仍未通过。
 - TD-003：Release/Debug 构建与共享 GPU 回归通过；Viewer readbacks/uploads=0/0、完整 descriptor/真实跨 adapter 拒绝有证据；1080p/60 秒由约 18FPS 提升到约 59FPS（3556–3566/3600）。长时资源已记录，G2-A 未测项经限定接受关闭，见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)与[长测记录](docs/evidence/p2-broker/resource-stability.md)。
 
-- Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；结果见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。
-- Phase 1 基线与历史治理记录保留原有证据，不将新构建替代真实捕获或隔离验收。
+- Phase 2–4 既有验证：C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；详见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。Phase 1 基线与历史记录仍保留，不以新构建替代真实捕获/隔离验收。
 - GitHub 首轮 CI 与 Dependabot 更新任务通过；告警/安全修复已启用，Cargo 更新待服务源码推送；本地两套 Rust lint/test 与 headless 验证通过，见 [CI 证据](docs/evidence/ci/README.md)。
 
 ## 按需入口

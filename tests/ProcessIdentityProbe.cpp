@@ -19,8 +19,15 @@ int wmain(int argc, wchar_t** argv) {
         }
         Logger::Initialize(L"ProcessIdentityProbe.log");
         ProcessIdentity current;
-        if (!ReadProcessIdentity(GetCurrentProcess(), current) || current.userSid.empty() || !current.creationTime ||
-            !MatchesRetainedProcess(GetCurrentProcess(), current)) { return 1; }
+        if (!ReadProcessIdentity(GetCurrentProcess(), current) || current.userSid.empty() || !current.creationTime) { return 1; }
+        if (current.publisherState != PublisherState::Verified) {
+            if (MatchesRetainedProcess(GetCurrentProcess(), current)) { return 1; }
+            Child denied;
+            if (denied.Start(current.imagePath, L"--identity-child", ChildRole::Producer)) { return 1; }
+            std::wcout << L"ProcessIdentityProbe passed: unsigned/unpinned Broker fails closed; positive child enrollment requires a VeilDesk publisher certificate pin.\n";
+            return 0;
+        }
+        if (!MatchesRetainedProcess(GetCurrentProcess(), current)) { return 1; }
         for (unsigned field = 0; field < 5; ++field) {
             auto forged = current;
             if (field == 0) { ++forged.pid; }

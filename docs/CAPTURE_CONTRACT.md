@@ -10,7 +10,7 @@ API 成功只说明复制/编码完成，不说明 Viewer 内容存在于输出�
 ## Phase 2 原型协议
 
 原型为本机 x64 v2 固定 64 字节消息，magic/version、Kind/Status、generation/frame、NT handle、boot-relative deadline、尺寸、adapter LUID；定义在 `src/broker/Protocol.h`。
-只允许自有启动树中的进程，以私有继承管道作为能力；父进程保留实际 process HANDLE，挂起启动后读取 PID/creation time/SID/session/image 并检查角色，交付前重新核对同一对象，而非重新按 PID 打开；publisher/signature NotVerified。
+只允许自有启动树中的进程，以私有继承管道作为能力；父进程保留实际 process HANDLE，挂起启动后读取 PID/creation time/SID/session/image 并检查角色，交付前重新核对同一对象，而非重新按 PID 打开。G2-C 增加 Authenticode + 构建时 publisher pin；空 pin 或校验失败时 deny。项目签名证书尚未 enrollment，路径映像检查也不证明进程内存未被同用户篡改。
 常规帧为 320×180 BGRA8，明确 LUID 的同一硬件 adapter，跨 adapter 拒绝且无 CPU fallback；keyed mutex 为 0→1，读者 AcquireSync(1) 后 ReleaseSync(1)，超时/abandoned 不能按 SUCCEEDED 算成功。
 ACK 必须匹配帧、代际和期限，不带句柄；对端中断/超时使会话失败，关闭通道并清理自己启动的进程。
 常规 lease 最多 30 秒、输出最多 120 帧；显式 `--benchmark` 仅自有 GPU Viewer 测试，duration 1..7200 秒、fps 1..240、总帧槽最多 1,728,000，Viewer/lease 预算 duration+30 秒；默认 60 秒，长测脚本默认 1800 秒，每周期记录分进程 CPU/GPU 资源，不输出 PNG，不开放外部消费者；会话使用随机非零 generation，撤销 bump 并关闭旧会话，到期/撤销后不交付新资源。每帧纹理不再改写，旧句柄可以继续读取旧快照，不能召回已保存像素。
@@ -32,7 +32,7 @@ PID、路径、进程名不能单独充当身份凭据；不能把“同一用�
 撤销无法召回消费者已保存的像素，也不能在未验证时承诺旧资源马上不可读。
 本原型不提供任意外部客户端注册、代码签名认证或防止同用户进程篡改/窃取句柄的边界；通用授权能力仍需 G2 审查。
 
-G2-B 设计与实现见 [ADR 0009](ADR/0009-authorization-envelope.md)：SecureService 是唯一 lease 真相源，Broker 仅执行版本化 envelope。Broker 通过独立本机授权管道取票；Service 从已连接管道取得真实客户端 PID，并核对创建时间、会话、SID 和映像路径摘要；正式 SCM 路径只接受安装目录中的 CaptureBroker。Broker 验证 Service 对端身份/路径，且每帧在交付任何共享资源前向 Service 原子消费所有适用 scope。帧数和累计字节预算、nonce、epoch、generation、deadline 与精确 envelope 状态均由 Service 执行。console smoke 使用显式测试对端参数，不等同正式 LocalService 部署证据。Publisher/Authenticode enrollment、SCM ACL/生命周期与同用户恶意映像防护仍未完成；G2 仍未通过。
+G2-B 设计与实现见 [ADR 0009](ADR/0009-authorization-envelope.md)：SecureService 是唯一 lease 真相源，Broker 仅执行版本化 envelope。Broker 通过独立本机授权管道取票；Service 从已连接管道取得真实客户端 PID，并核对创建时间、会话、SID 和映像路径摘要；正式 SCM 路径只接受安装目录中的 CaptureBroker。Broker 验证 Service 对端身份/路径，且每帧在交付任何共享资源前向 Service 原子消费所有适用 scope。帧数和累计字节预算、nonce、epoch、generation、deadline 与精确 envelope 状态均由 Service 执行。G2-C 已增加 Broker/Service 对端 Authenticode publisher pin 校验；构建 pin 为空或不匹配时 fail-closed。平台签名样本与负向证据通过，但本机没有 VeilDesk 测试证书，项目映像正向 enrollment 未测。console smoke 不等同正式 LocalService 部署证据；SCM ACL/生命周期与同用户恶意映像防护仍未完成；G2 仍未通过。
 
 ## 后续生命周期
 

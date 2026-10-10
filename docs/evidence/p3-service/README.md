@@ -1,6 +1,6 @@
 # Phase 3 Rust 服务原型证据
 
-日期：2026-10-10（Asia/Shanghai）；P3-01/02 基础切片、P3-03 策略内核和 G2-B 授权 IPC；G2-B 实现与限定验证完成，G3：未通过。
+日期：2026-10-10（Asia/Shanghai）；P3-01/02 基础切片、P3-03 策略内核和 G2-B 授权 IPC；G2-B 实现与限定验证完成，G2-C publisher pin 校验实现已增加但项目证书未 enrollment；G3：未通过。
 源码版本：基于 `b699715` 的本轮未提交工作树；服务在 `service/`，部署候选在 `scripts/service-control.ps1`。
 
 G2-B 当前未提交增量：Rust 固定编码契约、真实客户端进程身份采集、策略与授权 IPC 位于 `service/src/`；C++ 编码/解码器和客户端位于 `src/broker/Authorization*`。两端使用 `tests/fixtures/authorization-envelope-v1.hex` 作为同一黄金夹具。授权 IPC 与诊断 STATUS/REVOKE 管道分离；Broker 每帧交付资源前由 Service 原子消费全部适用 envelope。console 端到端验证通过；正式 SCM 部署和映像签名者认证仍未覆盖。
@@ -36,7 +36,7 @@ powershell -NoProfile -File scripts/verify.ps1
 - Broker 生产端验证 named-pipe server 的 LocalService SID 和固定安装映像路径；console 测试绑定预期 PID、同 SID/session 与 Service 映像名。Broker 校验返回 envelope 属于自身实际 PID/创建时间/session/SID/image 后，才使用该票据。
 - 正常 RECORD 与 VIEW 票据按帧/累计字节预算签发。每帧在 Producer 生成/交付共享纹理之前，Broker 将所有需要的票据一起发送给 Service 原子消费；未知/过期/重放/预算超限/撤销/Service 断连均停止新资源交付，无本地 lease 回退。授权撤销不能召回已交付资源。
 - 端到端 console Broker smoke：approved 交付 8 帧；撤销后仅交付此前 2 帧；过期、伪造 PID、单帧超预算、Service 不可用均无新帧；错误 scope 拒签；重放在 1 帧后拒绝。Rust 策略负向覆盖伪造主体/代际/epoch、期限、重放、累计预算原子性、未知 scope 与非法 envelope 版本/角色。诊断管道仍拒绝 GRANT。
-- Envelope 无 MAC；其完整性依赖 pipe ACL、实际对端身份和响应 request ID。当前未做 Authenticode publisher enrollment，同用户恶意映像/注入/句柄盗用不在保证范围；G2-C 与 G2-D 仍开放。SCM/LocalService 服务启动、跨账户 ACL 和正式 Broker 安装路径尚未真机验证，因此本证据不代表 G3 或 G2 通过。
+- Envelope 无 MAC；其完整性依赖 pipe ACL、实际对端身份和响应 request ID。Broker 当前以 Authenticode 签名链 + SHA-256 pin 校验 Service 对端，但本机没有 VeilDesk 项目证书，项目 publisher 正向 enrollment 未测；同用户恶意映像/注入/句柄盗用不在保证范围。G2-C 项目证书与 G2-D 故障矩阵仍开放。SCM/LocalService 服务启动、跨账户 ACL 和正式 Broker 安装路径尚未真机验证，因此本证据不代表 G3 或 G2 通过。详见 [G2-C/D 证据](../p2-broker/g2c-g2d.md)。
 
 最终验证：`powershell -NoProfile -File scripts/verify.ps1` 通过；C++ Release、CTest 12/12（含交互测试）、Rust 8/8、Release、console IPC 和 Service/VM 预览通过；独立 `cargo fmt -- --check` 与 Clippy `-D warnings` 通过。BrokerSmoke 在本机 console Service、GPU producer、Recorder、Viewer 下验证批准/拒绝路径。正式 SCM/LocalService 未运行；未运行 GPU 性能长测。
 

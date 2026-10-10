@@ -7,7 +7,7 @@
 
 Broker 仅自身 Producer/Record 和同目录 SecureViewer/View；角色在 Broker 内赋值。未知角色、路径、身份查询失败、SID/session/image 不匹配默认 deny。挂起 CreateProcess，读取真实对象的 PID/creation time/primary SID/session/image 后才 ResumeThread。
 交付前核对同一个 retained process HANDLE 的身份和存活状态；不调用 OpenProcess 按 PID attach。private inherited pipes 仍是 capability；未开放任意消费者入口。
-`ProcessIdentity.publisherState=NotVerified`，publisher 为空，未声称签名安全；路径与同 SID 不是完整信任证明。
+在本文件对应的 G2-B 基线提交中，`ProcessIdentity.publisherState=NotVerified`、publisher 为空；该历史基线未声称签名安全。G2-C 当前实现与结果见下方更新。
 每次 Broker 会话由系统 RNG 生成非零 generation；撤销 bump、停止 handle delivery、关闭旧 session。每帧新资源，旧 handle 的像素不召回，也不接收新资源的未来写入。
 此文记录 P2-03/G2-B 接通前的 Broker 本地 enrollment 基线。当前授权状态已由 [ADR 0009](../../ADR/0009-authorization-envelope.md) 定义：Service 签发并逐帧核验 envelope；本文件关于签名者未验证、同用户映像篡改和句柄转移的限制仍有效。
 
@@ -25,9 +25,17 @@ Broker 仅自身 Producer/Record 和同目录 SecureViewer/View；角色在 Brok
 | 撤销代际 | Revoke 增加 generation，旧有效消息得到 Revoked；实际 revoke-after 2 输出恰好 2 帧，退出旧会话 |
 | 既有显示/资源行为 | BrokerSmoke 的 Viewer 0 readback/0 upload、Producer/Consumer 退出、超时、旧纹理、真实跨 adapter 等回归通过 |
 
-## 限制 / Gate
+## 原基线限制 / Gate（G2-C 前）
 
 publisher/signature、二进制替换、恶意同用户进程/句柄转移、真实 PID 复用、真实 session 切换、在途 revoke、Broker crash/device loss 未验收。
-canonical lease_id/subject/session/scope/issued_at/expires_at/nonce 与 Service 强制控制已在 G2-B 限定实现；Publisher/Authenticode enrollment 仍待 G2-C。随机 generation 不是单独授权 token。
+canonical lease_id/subject/session/scope/issued_at/expires_at/nonce 与 Service 强制控制已在 G2-B 限定实现；该基线下 Publisher/Authenticode 尚未验证。当前 G2-C 结果见下文。随机 generation 不是单独授权 token。
+
+WinVerifyTrust 使用本地缓存 URL 进行撤销查询，不发起网络刷新；项目证书链的实时撤销状态未验证。校验的是映像路径当前文件，不证明进程已映射内存与文件逐字节相同，也不防同用户在运行时 patch。此类文件替换/内存篡改限制仍开放。
+
+## G2-C 更新（2026-10-10）
+
+G2-C 实现现位于 `src/broker/Authenticode.cpp` 与 `ProcessIdentity`：WinVerifyTrust 验证 Authenticode 文件信任，构建时 `VEILDESK_AUTHENTICODE_PUBLISHER_SHA256` 固定签名者证书 SHA-256。空 pin、未签名/不可信映像和 pin 不匹配 fail-closed；Broker 子进程和 SecureService 对端要求同一 publisher。平台样本正向及错 pin、未签名、篡改负向证据见 [G2-C/D 证据](g2c-g2d.md)。
+
+本机没有 VeilDesk 测试发布证书/私钥，项目映像签署与实际 publisher enrollment 未测；未配置 pin 的开发构建不能启动自有子进程。G2-C 的项目正向 enrollment 仍开放，G2-D 已按维护者要求开始有限故障矩阵。
 性能数字来自 `9d04ebd` GPU 工作包（约 19FPS、热身后 private bytes 增长）；身份增量尚不构成性能复验或无泄漏保证。
 G2 仍未通过，未推进 Phase 3/4、SCM 安装或系统策略/虚拟化修改。当前入口与优先级见 [Context](../../../CONTEXT.md)。

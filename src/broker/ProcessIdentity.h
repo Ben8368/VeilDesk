@@ -5,7 +5,7 @@
 
 namespace veil::broker {
 enum class ChildRole { None, Producer, View, Record };
-enum class PublisherState { NotVerified };
+enum class PublisherState { NotVerified, Unsigned, TrustRejected, PublisherMismatch, Verified };
 struct ProcessIdentity {
     DWORD pid = 0, sessionId = MAXDWORD;
     std::uint64_t creationTime = 0;
@@ -13,6 +13,8 @@ struct ProcessIdentity {
     PublisherState publisherState = PublisherState::NotVerified;
 };
 bool ReadProcessIdentity(HANDLE retainedProcess, ProcessIdentity& identity);
+bool VerifyAuthenticodePublisher(const std::wstring& imagePath, const std::wstring& expectedThumbprint,
+    std::wstring& signerThumbprint, PublisherState& state, LONG* trustStatus = nullptr);
 bool SamePrincipal(const ProcessIdentity& a, const ProcessIdentity& b) noexcept;
 bool SameImage(const std::wstring& a, const std::wstring& b) noexcept;
 bool MatchesRetainedProcess(HANDLE retainedProcess, const ProcessIdentity& enrolled);

@@ -40,6 +40,9 @@ bool Child::Start(const std::wstring& executable, const std::wstring& options, C
     ProcessIdentity parent;
     if (process || (approvedRole != ChildRole::Producer && approvedRole != ChildRole::View && approvedRole != ChildRole::Record) ||
         !ReadProcessIdentity(GetCurrentProcess(), parent)) { return false; }
+    if (parent.publisherState != PublisherState::Verified || parent.publisher.empty()) {
+        Logger::Error(L"Location: Enrollment; Cause: Broker Authenticode publisher is not enrolled/trusted; Action: deny child launch"); return false;
+    }
     const auto expected = approvedRole == ChildRole::View ?
         (std::filesystem::path(parent.imagePath).parent_path() / L"SecureViewer.exe").wstring() : parent.imagePath;
     if (!SameImage(executable, expected)) {
@@ -94,9 +97,10 @@ bool Child::Start(const std::wstring& executable, const std::wstring& options, C
         Logger::Win32Error(L"CreateProcessW(approved child)", GetLastError()); return false;
     }
     process.reset(info.hProcess); Handle thread(info.hThread);
-    if (!ReadProcessIdentity(process.get(), identity) || identity.pid != info.dwProcessId ||
+    if (!ReadProcessIdentity(process.get(), identity) || identity.publisherState != PublisherState::Verified ||
+        identity.publisher != parent.publisher || identity.pid != info.dwProcessId ||
         !SamePrincipal(parent, identity) || !SameImage(expected, identity.imagePath)) {
-        Logger::Error(L"Location: Enrollment; Cause: identity/session/SID/image mismatch; Action: deny, terminate owned suspended child"); return false;
+        Logger::Error(L"Location: Enrollment; Cause: Authenticode publisher/identity/session/SID/image mismatch; Action: deny, terminate owned suspended child"); return false;
     }
     role = approvedRole; enrolled = true;
     const DWORD resumed = ResumeThread(thread.get());
@@ -105,7 +109,7 @@ bool Child::Start(const std::wstring& executable, const std::wstring& options, C
         else { Logger::Error(L"Enrollment unexpected thread suspend count; Action: deny"); }
         enrolled = false; return false;
     }
-    Logger::Info(L"Enrolled own child: retained process object, PID/creation/session/SID/image; publisher NOT VERIFIED; role=" +
+    Logger::Info(L"Enrolled own child: retained process object, PID/creation/session/SID/image and pinned Authenticode publisher; role=" +
         std::to_wstring(static_cast<unsigned>(role)));
     return true;
 }

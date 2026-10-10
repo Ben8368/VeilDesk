@@ -8,7 +8,7 @@
 | TD-002 | device removed/reset 记录错误后退出，没有设备重建 | 驱动重置/睡眠等不能无缝恢复 | 共享纹理生命周期工作包中设计 generation 与重建，保留明确失败语义 |
 | TD-004 | 日志固定写当前工作目录、无轮转；同目录多实例互相覆盖 | 诊断关联和长期运行有限；可能含设备/路径信息 | Broker/服务接入时引入实例标识、脱敏与有界轮转，不自动上传 |
 | TD-005 | 原型每帧创建不可变共享纹理，以 ACK 限制一帧在途；IPC 以短间隔轮询 | 已有一次完整 1800 秒 1080p 曲线；热身后各角色 private bytes、句柄、线程和 GPU dedicated 未触发调查阈值，目标时隙仍有 3.44% 未产生帧；电功耗和高精度 timer 回退性能未测，不适用于生产录屏承诺 | G2-A 已于 2026-10-10 由维护者限定接受并关闭；不再开展 GPU 优化或资源池评估，不作功耗/timer 回退性能承诺。关联[长测记录](evidence/p2-broker/resource-stability.md)、RISK-005 |
-| TD-006 | SecureService lease 仅驻留内存，SCM 生命周期/安装 ACL 尚未实机验证；发布者校验未实现 | 服务重启会作废全部 envelope；当前 Broker 映像尚未通过 Authenticode enrollment | P3-02/03 验证 SCM 生命周期与策略迁移/持久化；G2-C 实现签名者验证，关联 RISK-003/006 |
+| TD-006 | SecureService lease 仅驻留内存，SCM 生命周期/安装 ACL 尚未实机验证；Authenticode pin 实现尚未配置 VeilDesk 项目证书 | 服务重启会作废全部 envelope；空 pin 构建 fail-closed，尚无可运行的签名发布构建 | P3-02/03 验证 SCM 生命周期与策略迁移/持久化；G2-C 用项目证书签署并 enrollment 全部自有映像，关联 RISK-003/006 |
 | TD-007 | VM 脚本具备计划/创建/启动/关闭/检查点入口，尚无 Guest 传输、恢复或删除实现 | 生命周期路径未真机验证，不能构成 Workspace | P4-02/03 补 Guest 协议、恢复/保留边界与故障证据；关联 RISK-007/008 |
 
 已偿还 TD-003：见 [2026-10-10 偿债记录](archive/reviews/2026-10-10-td003.md)。

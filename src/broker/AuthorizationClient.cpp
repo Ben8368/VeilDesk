@@ -52,9 +52,13 @@ bool AuthorizationClient::VerifyServer(HANDLE pipe) {
         HANDLE raw = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         if (!raw) { Logger::Win32Error(L"OpenProcess(console Service peer)", GetLastError()); return false; }
         Handle process(raw); ProcessIdentity peer, self;
-        return ReadProcessIdentity(process.get(), peer) && ReadProcessIdentity(GetCurrentProcess(), self) &&
-            peer.sessionId == self.sessionId && peer.userSid == self.userSid &&
+        if (!ReadProcessIdentity(process.get(), peer) || !ReadProcessIdentity(GetCurrentProcess(), self)) { return false; }
+        const bool matches = peer.sessionId == self.sessionId && peer.userSid == self.userSid &&
+            peer.publisherState == PublisherState::Verified && self.publisherState == PublisherState::Verified &&
+            !peer.publisher.empty() && peer.publisher == self.publisher &&
             CompareStringOrdinal(std::filesystem::path(peer.imagePath).filename().c_str(), -1, L"veil-secure-service.exe", -1, TRUE) == CSTR_EQUAL;
+        if (!matches) { Logger::Error(L"Authorization console Service publisher/identity mismatch; denied"); }
+        return matches;
     }
     HANDLE raw = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
     if (!raw) { Logger::Win32Error(L"OpenProcess(SecureService peer)", GetLastError()); return false; }
@@ -62,8 +66,14 @@ bool AuthorizationClient::VerifyServer(HANDLE pipe) {
     wchar_t programFiles[32768]{};
     const DWORD length = GetEnvironmentVariableW(L"ProgramFiles", programFiles, static_cast<DWORD>(std::size(programFiles)));
     if (!length || length >= std::size(programFiles) || !ReadProcessIdentity(process.get(), peer)) { return false; }
+    ProcessIdentity self;
+    if (!ReadProcessIdentity(GetCurrentProcess(), self)) { return false; }
     const auto expected = (std::filesystem::path(programFiles) / L"VeilDesk" / L"SecureService" / L"veil-secure-service.exe").wstring();
-    if (peer.userSid != L"S-1-5-19" || !SameImage(peer.imagePath, expected)) { Logger::Error(L"Authorization server identity/path mismatch; denied"); return false; }
+    if (peer.userSid != L"S-1-5-19" || !SameImage(peer.imagePath, expected) ||
+        peer.publisherState != PublisherState::Verified || self.publisherState != PublisherState::Verified ||
+        peer.publisher.empty() || peer.publisher != self.publisher) {
+        Logger::Error(L"Authorization server publisher/identity/path mismatch; denied"); return false;
+    }
     return true;
 }
 
