@@ -1,25 +1,25 @@
 # 当前状态
 
 > **最后确认：** 2026-10-10
-> **阶段：** Phase 2 / Broker 原型推进；Phase 3–4 基础实现与探测已启动，Gate 未通过。
+> **阶段：** Phase 2A / TD-003 GPU 显示通路优先；G2/G3/G4 未通过。
 > **当前范围：** 自有内容源、受控消费者与后续阶段基础设施，尚非完整 Secure Workspace。
 
 ## 当前事实
 
 - SecureViewer 与 CaptureTest 已实现；C++20 / Win32 / D3D11，普通 GDI 捕获和 WIC PNG 编码。
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
-- 维护者本轮明确授权“继续剩余的 Phase 2-4”；覆盖源码与本地验证，不重复请求开发授权。
+- 维护者本轮要求先完成 TD-003，再收敛 G2；G2/G3 通过前不继续 Phase 3/4，系统变更仍独立授权。
 - 独立 producer / Broker / Viewer / PNG 消费者原型已实现；限定结果见 [Broker 证据](docs/evidence/p2-broker/README.md)。
 - Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；见 [服务证据](docs/evidence/p3-service/README.md)。
 - Workspace 探针和 VM 生命周期脚本已实现；Guest 显示/输入尚未实现，见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
-- GitHub 私有仓库：[Ben8368/VeilDesk](https://github.com/Ben8368/VeilDesk)；Phase 2–4 原型与历史署名修正已推送到远端 `main`。
+- GitHub public 仓库（本轮 `gh api` 实查）：[Ben8368/VeilDesk](https://github.com/Ben8368/VeilDesk)；Phase 2–4 原型与历史署名修正已推送到远端 `main`。
 - 采用单一文档事实源；AI 提交需强制 `🚦 Audit Report` 与工具级 trailer，见 [AI_RULES](docs/AI_RULES.md)；迁移出处见 [治理迁移记录](docs/archive/reviews/2026-10-10-governance-bootstrap.md)。
 
 ## 近期优先级
 
-1. 评审 [ADR 0004](docs/ADR/0004-private-broker-prototype.md) 的原型边界，补 G2 身份、故障、资源和捕获对照证据。
-2. 收敛服务与 Broker 的主体注册和策略执行，补 G3 的持久化、账户/ACL 与隔离安装恢复验收。
-3. 准备隔离测试机与许可 Guest 镜像后实现 Guest/Host 通路，再按应用逐项验收 G4。
+1. 完成 TD-003：同 adapter 共享 GPU 纹理直入 Viewer，补零 readback/upload 与 1080p 性能证据。
+2. 收敛 G2 身份、lease、撤销、故障矩阵；服务集成在 G2 可接受后推进。
+3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 
 ## 当前风险与限制
 

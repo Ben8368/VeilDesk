@@ -1,5 +1,6 @@
 #include "broker/Channel.h"
 #include "broker/SharedFrame.h"
+#include "broker/FrameReadback.h"
 #include "capture/CaptureEngine.h"
 #include "common/Logger.h"
 #include <filesystem>
@@ -17,7 +18,7 @@ int Producer(HANDLE input, HANDLE output) {
         !SetHandleInformation(write.get(), HANDLE_FLAG_INHERIT, 0)) {
         Logger::Win32Error(L"Producer disable inheritance", GetLastError()); return 1;
     }
-    SharedFrame gpu;
+    SharedFrameProducer gpu;
     if (!gpu.Initialize()) { return 1; }
     Lease lease;
     for (;;) {
@@ -29,6 +30,7 @@ int Producer(HANDLE input, HANDLE output) {
         Handle frame;
         if (!gpu.Produce(request.frame, frame)) { return 1; }
         request.handle = reinterpret_cast<std::uintptr_t>(frame.get());
+        request.adapterLow = gpu.Adapter().LowPart; request.adapterHigh = gpu.Adapter().HighPart;
         if (!Send(write.get(), request)) { return 1; }
         Message ack;
         if (!Receive(read.get(), ack, 5000) || ack.kind != Kind::Ack || ack.status != Status::Ok || ack.handle != 0 ||
@@ -45,7 +47,8 @@ int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destinati
         !SetHandleInformation(write.get(), HANDLE_FLAG_INHERIT, 0)) {
         Logger::Win32Error(L"Consumer disable inheritance", GetLastError()); return 1;
     }
-    SharedFrame gpu;
+    SharedFrameConsumer gpu;
+    FrameReadback readback;
     const HRESULT initialized = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (!Logger::CheckHR(initialized, L"Consumer CoInitializeEx")) { return 1; }
     struct Apartment { ~Apartment() { CoUninitialize(); } } apartment;
@@ -63,8 +66,12 @@ int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destinati
         std::vector<BYTE> pixels;
         if (status != Status::Ok) {
             Handle rejected(reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(message.handle)));
-        } else if (!gpu.Read(message, pixels)) { ack.status = Status::Failed; }
-        else {
+        } else {
+            SharedTexture texture;
+            if (!gpu.OpenFrame(message, texture) || !readback.Read(texture.Get(), pixels) ||
+                pixels != FramePixels(message.frame) || !texture.Close()) { ack.status = Status::Failed; }
+        }
+        if (ack.status == Status::Ok) {
             const auto finalPath = destination / (L"frame-" + std::to_wstring(message.frame) + L".png");
             const auto temporary = destination / (L"pending-" + std::to_wstring(GetCurrentProcessId()) + L".png");
             Handle reservation(CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr));
@@ -186,6 +193,8 @@ int wmain(int argc, wchar_t** argv) {
                 Logger::Win32Error(L"DuplicateHandle(from retained producer)", GetLastError()); return 1;
             }
             Handle shared(local);
+            message.adapterLow = produced.adapterLow; message.adapterHigh = produced.adapterHigh;
+            Logger::Info(L"Broker frame adapter LUID=" + AdapterText(LUID{message.adapterLow, message.adapterHigh}));
             if (!Deliver(recorder, shared.get(), message) ||
                 (viewer && !Deliver(display, shared.get(), message))) { return 1; }
             Message ack = message; ack.kind = Kind::Ack;

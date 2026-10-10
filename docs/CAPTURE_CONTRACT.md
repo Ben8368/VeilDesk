@@ -9,9 +9,9 @@ API 成功只说明复制/编码完成，不说明 Viewer 内容存在于输出�
 
 ## Phase 2 原型协议
 
-原型为本机 x64 固定 56 字节消息，magic/version、Kind/Status、generation/frame、NT handle、boot-relative deadline、尺寸；定义在 `src/broker/Protocol.h`。
+原型为本机 x64 v2 固定 64 字节消息，magic/version、Kind/Status、generation/frame、NT handle、boot-relative deadline、尺寸；定义在 `src/broker/Protocol.h`。
 只允许自有启动树中的进程，以私有继承管道作为能力；父进程保留实际 process HANDLE，而非重新按 PID 打开。
-每帧固定 320×180 BGRA8，同一默认硬件 adapter；keyed mutex 为 0→1，读者 AcquireSync(1) 后 ReleaseSync(1)，超时/abandoned 不能按 SUCCEEDED 算成功。
+常规帧为 320×180 BGRA8，明确 LUID 的同一硬件 adapter，跨 adapter 拒绝且无 CPU fallback；keyed mutex 为 0→1，读者 AcquireSync(1) 后 ReleaseSync(1)，超时/abandoned 不能按 SUCCEEDED 算成功。
 ACK 必须匹配帧、代际和期限，不带句柄；对端中断/超时使会话失败，关闭通道并清理自己启动的进程。
 lease 默认最多 30 秒，输出最多 120 帧；到期/撤销后不交付新资源。每帧纹理不再改写，旧句柄可以继续读取旧快照，不能召回已保存像素。
 PNG 写入显式新目录；临时文件编码完成才改名，拒绝覆盖既有文件，失败清理未完成输出并保留已完成帧。

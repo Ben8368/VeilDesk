@@ -12,13 +12,13 @@ D3D11Renderer::~D3D11Renderer() {
     if (context_) { context_->ClearState(); context_->Flush(); }
     Logger::Info(L"Renderer released; presented frames=" + std::to_wstring(frame_));
 }
-bool D3D11Renderer::Initialize(HWND hwnd, bool tryDisplayOnly, bool simulateDisplayOnlyFailure) {
+bool D3D11Renderer::Initialize(HWND hwnd, bool tryDisplayOnly, bool simulateDisplayOnlyFailure, bool requireHardware) {
     hwnd_ = hwnd;
     const D3D_FEATURE_LEVEL levels[]{D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL actual{};
     HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
         levels, static_cast<UINT>(std::size(levels)), D3D11_SDK_VERSION, device_.GetAddressOf(), &actual, context_.GetAddressOf());
-    if (FAILED(hr)) {
+    if (FAILED(hr) && !requireHardware) {
         Logger::Warn(L"D3D11CreateDevice(hardware) unavailable; trying WARP software device: " + Logger::HrMessage(hr));
         device_.Reset(); context_.Reset();
         hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
@@ -129,6 +129,7 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
         D3D11_TEXTURE2D_DESC desc{}; source_->GetDesc(&desc);
         const D3D11_BOX region{0, 0, 0, (std::min)(width_, desc.Width), (std::min)(height_, desc.Height), 1};
         context_->CopySubresourceRegion(buffer.Get(), 0, 0, 0, 0, source_.Get(), 0, &region);
+        if (stats_) { ++stats_->gpuCopies; }
     }
     textContext_->BeginDraw();
     textContext_->SetTransform(D2D1::Matrix3x2F::Identity());
@@ -191,14 +192,27 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
     if (frame_ == 1 || frame_ % 300 == 0) { Logger::Info(L"Presented frame " + std::to_wstring(frame_)); }
     return true;
 }
-bool D3D11Renderer::SetSourcePixels(const std::vector<BYTE>& pixels, UINT width, UINT height) {
-    if (width == 0 || height == 0 || width > 4096 || height > 4096 || pixels.size() != static_cast<size_t>(width) * height * 4) {
-        Logger::Error(L"Source dimensions/pixel buffer rejected"); return false;
+bool D3D11Renderer::SetSourceTexture(ID3D11Texture2D* texture) {
+    if (!texture) { Logger::Error(L"Renderer source is null; Action: deny"); return false; }
+    Microsoft::WRL::ComPtr<ID3D11Device> owner;
+    texture->GetDevice(owner.GetAddressOf());
+    if (owner.Get() != device_.Get()) {
+        Logger::Error(L"Renderer source/device mismatch; Action: deny (no CPU fallback)"); return false;
     }
-    D3D11_TEXTURE2D_DESC desc{};
-    desc.Width = width; desc.Height = height; desc.MipLevels = 1; desc.ArraySize = 1;
-    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; desc.SampleDesc.Count = 1;
-    const D3D11_SUBRESOURCE_DATA data{pixels.data(), width * 4, 0};
-    return Logger::CheckHR(device_->CreateTexture2D(&desc, &data, source_.ReleaseAndGetAddressOf()), L"CreateTexture2D(Viewer input)");
+    D3D11_TEXTURE2D_DESC desc{}; texture->GetDesc(&desc);
+    broker::Message metadata; metadata.pixelWidth = desc.Width; metadata.pixelHeight = desc.Height;
+    if (!broker::ValidateTexture(desc, metadata)) { Logger::Error(L"Renderer source descriptor rejected"); return false; }
+    D3D11_TEXTURE2D_DESC previous{};
+    if (source_) { source_->GetDesc(&previous); }
+    if (!source_ || previous.Width != desc.Width || previous.Height != desc.Height) {
+        source_.Reset(); desc.MiscFlags = 0; desc.BindFlags = 0;
+        if (!Logger::CheckHR(device_->CreateTexture2D(&desc, nullptr, source_.GetAddressOf()),
+            L"CreateTexture2D(Viewer GPU snapshot, no CPU data)")) { return false; }
+    }
+    // Copy before releasing shared mutex. Local snapshot survives resize/repaint.
+    context_->CopyResource(source_.Get(), texture);
+    context_->Flush();
+    if (stats_) { ++stats_->gpuCopies; }
+    return Logger::CheckHR(device_->GetDeviceRemovedReason(), L"Viewer GPU copy device status");
 }
 }

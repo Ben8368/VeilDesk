@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <vector>
+#include "broker/SharedFrame.h"
 
 namespace veil {
 class D3D11Renderer final {
@@ -18,18 +18,21 @@ public:
     ~D3D11Renderer();
     D3D11Renderer(const D3D11Renderer&) = delete;
     D3D11Renderer& operator=(const D3D11Renderer&) = delete;
-    bool Initialize(HWND hwnd, bool tryDisplayOnly = true, bool simulateDisplayOnlyFailure = false);
+    bool Initialize(HWND hwnd, bool tryDisplayOnly = true, bool simulateDisplayOnlyFailure = false, bool requireHardware = false);
     bool Resize(UINT width, UINT height);
     // Output/presentation is kept separate from the test source. Phase 2 can
     // replace source drawing with sampling an ID3D11Texture2D in this path.
     bool RenderFrame(UINT dpi);
-    bool SetSourcePixels(const std::vector<BYTE>& pixels, UINT width, UINT height);
+    bool SetSourceTexture(ID3D11Texture2D* texture);
+    ID3D11Device* Device() const noexcept { return device_.Get(); }
+    void SetStats(broker::ZeroCopyStats* stats) noexcept { stats_ = stats; }
     void SetProtectionStatus(std::wstring status) { protectionStatus_ = std::move(status); }
     std::uint64_t FrameCount() const noexcept { return frame_; }
     bool DisplayOnlyEnabled() const noexcept { return (swapFlags_ & DXGI_SWAP_CHAIN_FLAG_DISPLAY_ONLY) != 0; }
 private:
     bool CreateTargets();
     void ReleaseTargets();
+    broker::ZeroCopyStats* stats_ = nullptr;
     HWND hwnd_ = nullptr;
     UINT width_ = 0;
     UINT height_ = 0;

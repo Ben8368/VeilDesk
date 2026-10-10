@@ -51,7 +51,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         } else { veil::Logger::Error(L"Unknown or incomplete option: " + std::wstring(args[i])); return 1; }
     }
     veil::SecureWindow window;
-    veil::broker::SharedFrame source;
+    veil::broker::SharedFrameConsumer source;
     veil::broker::Lease sourceLease;
     if (sharedSource) {
         if (!protection || GetFileType(channelInput.get()) != FILE_TYPE_PIPE || GetFileType(channelOutput.get()) != FILE_TYPE_PIPE) {
@@ -61,15 +61,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
             !SetHandleInformation(channelOutput.get(), HANDLE_FLAG_INHERIT, 0)) {
             veil::Logger::Win32Error(L"Viewer disable channel inheritance", GetLastError()); return 1;
         }
-        if (!source.Initialize()) { return 1; }
     } else if (channelInput || channelOutput) { veil::Logger::Error(L"Channel requires --shared-source"); return 1; }
     if (!window.Create(instance)) { return 1; }
     const auto status = protection ? veil::DisplayProtection::Enable(window.Handle()) : veil::ProtectionResult{};
     if (sharedSource && !status.enabled) { veil::Logger::Error(L"Shared Viewer requires confirmed WDA"); return 1; }
     if (!protection) { veil::Logger::Warn(L"UNPROTECTED diagnostic baseline explicitly selected"); }
+    veil::broker::ZeroCopyStats stats;
+    struct StatsExit { veil::broker::ZeroCopyStats& stats; bool active; ~StatsExit() { if (active) { stats.Log(); } } } statsExit{stats, sharedSource};
     veil::D3D11Renderer renderer;
+    if (sharedSource) { renderer.SetStats(&stats); }
     renderer.SetProtectionStatus(status.enabled ? L"WDA_EXCLUDEFROMCAPTURE: API enabled" : L"WDA: NOT CONFIRMED / UNPROTECTED");
-    if (!renderer.Initialize(window.Handle(), protection && displayOnly, simulateDisplayOnlyFailure)) { return 1; }
+    if (!renderer.Initialize(window.Handle(), protection && displayOnly, simulateDisplayOnlyFailure, sharedSource)) { return 1; }
+    if (sharedSource && !source.Initialize(renderer.Device(), &stats)) { return 1; }
     window.SetResizeHandler([&renderer](UINT width, UINT height) { return renderer.Resize(width, height); });
     window.Show(show);
     // The first ShowWindow honors STARTUPINFO even if a different command is
@@ -100,8 +103,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                 if (decision != veil::broker::Status::Ok) {
                     veil::broker::Handle rejected(reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(message.handle))); return false;
                 }
-                std::vector<BYTE> pixels;
-                if (!source.Read(message, pixels) || !renderer.SetSourcePixels(pixels, message.pixelWidth, message.pixelHeight)) { return false; }
+                veil::broker::SharedTexture texture;
+                if (!source.OpenFrame(message, texture) || !renderer.SetSourceTexture(texture.Get()) || !texture.Close()) { return false; }
                 message.kind = veil::broker::Kind::Ack; message.handle = 0;
                 if (!renderer.RenderFrame(window.Dpi()) || !veil::broker::Send(channelOutput.get(), message)) { return false; }
                 sourceLease.lastFrame = message.frame;
