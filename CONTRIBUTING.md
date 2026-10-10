@@ -24,4 +24,4 @@
 
 使用 [PR 模板](.github/PULL_REQUEST_TEMPLATE.md) 说明问题、阶段、变化、验证和限制。
 事实回填遵守 [GOVERNANCE](docs/GOVERNANCE.md)，责任域见 [MAINTAINERS](docs/MAINTAINERS.md)。
-本仓库尚未授权公开分发或创建远程仓库；本地 commit 不等于 push 或发布。
+远程仓库与当前授权状态见 [CONTEXT](CONTEXT.md)；本地 commit 不等于 push、公开分发或发布。

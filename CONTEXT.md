@@ -9,6 +9,7 @@
 - SecureViewer 与 CaptureTest 已实现；C++20 / Win32 / D3D11，普通 GDI 捕获和 WIC PNG 编码。
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
 - Phase 2–4 的路线图、工作包与治理基线已建立；后续实现需新任务授权。
+- GitHub 私有仓库：[Ben8368/VeilDesk](https://github.com/Ben8368/VeilDesk)，本地 `origin` 指向该仓库；本轮已授权推送 `main`。
 - 采用单一文档事实源，来源与差异见 [治理迁移记录](docs/archive/reviews/2026-10-10-governance-bootstrap.md)。
 
 ## 近期优先级
