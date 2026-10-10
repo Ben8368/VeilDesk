@@ -80,3 +80,8 @@ API 不确定时先查实际 SDK 和 Microsoft Learn；记录依据与实测差�
 
 使用多个 `-m` 或 UTF-8 message 文件，不在 shell 字符串里用字面 `\n` 伪造换行。
 提交后执行 `git show -s --format=%B HEAD | git interpret-trailers --parse` 确认 trailer，并检查仓库状态。
+
+首次 clone 后运行 `powershell -NoProfile -File scripts/install-git-hooks.ps1`，启用仓库内 [.githooks/commit-msg](../.githooks/commit-msg)。安装只设置当前仓库的 `core.hooksPath`，遇到其他路径或既有 hook 拒绝覆盖；恢复默认路径可运行 `git config --local --unset core.hooksPath`。
+hook 按 Git 的最终 trailer 解析，要求上述工具署名；不猜测实际工具、不自动修改消息或作者。纯人工工作用 `Human-authored: true` 声明，有 AI 参与不得用此标记代替署名，也不得与 AI 署名混用。
+Cursor 切换分支时的 `checkpoint before checking out ...` 路径会遗漏署名；hook 会拒绝该提交，应先按实际参与工具完成提交再切换。终端/GUI 都受本地 hook 约束；未安装或 `--no-verify` 可绕过，CI 回归检查不代表远端强制检查每个提交。
+回归入口：[tests/git-hooks-smoke.ps1](../tests/git-hooks-smoke.ps1)，覆盖真实提交的接受/拒绝、原消息保留及安装冲突，已接入 `scripts/verify.ps1` 和 CI。

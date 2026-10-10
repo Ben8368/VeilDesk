@@ -17,6 +17,7 @@
 - 从 `main` 创建短分支，按范围使用 `docs/`、`fix/`、`feat/` 或 `spike/` 前缀。
 - 默认不自动提交、推送或发布；每种动作在用户授权范围内执行，无需重复确认。
 - 中文 Conventional Commit 及 AI 工具 trailer 以 [AI_RULES](docs/AI_RULES.md) 为准。
+- 首次 clone 后运行 `powershell -NoProfile -File scripts/install-git-hooks.ps1`；署名校验、人工声明和安装冲突处理见 AI_RULES。
 - 首次根提交允许一起建立既有 Phase 1 源码与治理基线；以后按独立工作包拆分。
 - 不提交构建物、原始桌面 PNG、日志、`.env`、证书私钥、凭据或真实客户数据。
 - 不修改用户无关改动；提交前检查 staged diff、忽略规则和验证结果。

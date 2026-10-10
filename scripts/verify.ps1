@@ -17,6 +17,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Governance validation failed' }
     & (Join-Path $rootPath 'tests/governance-smoke.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Governance checker regression failed' }
+    & (Join-Path $rootPath 'tests/git-hooks-smoke.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Git attribution hook regression failed' }
     $cmakeCommand = Get-Command cmake -CommandType Application -ErrorAction SilentlyContinue
     if ($null -ne $cmakeCommand) { $cmakePath = $cmakeCommand.Source }
     else {

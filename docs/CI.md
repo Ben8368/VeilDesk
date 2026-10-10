@@ -6,7 +6,7 @@
 
 | 检查 | 范围 |
 | --- | --- |
-| Governance and workflow syntax | 文档预算/链接/UTF-8/LF、检查器正负回归、固定 actionlint 1.7.12 |
+| Governance and workflow syntax | 文档预算/链接/UTF-8/LF、治理与 Git 署名 hook 正负回归、固定 actionlint 1.7.12 |
 | C++ x64 / Release、Debug | windows-2022、VS 2022、x64、两配置编译；跳过桌面/GPU CTest |
 | Rust / 1.85.1、stable | 有 service/Cargo.toml 时运行；fmt、clippy -D warnings、锁定依赖测试/Release、真实 console IPC 和运维预览 |
 | CI required | 汇总全部结果；只有没有服务 manifest 时接受 Rust skipped，其他失败/取消不通过 |

@@ -10,7 +10,8 @@
     "docs/archive/reviews/2026-10-10-governance-bootstrap.md",
     "docs/lessons/governance.md", "docs/lessons/windows.md", "docs/lessons/capture.md",
     "tests/VERIFICATION.md", "scripts/governance-docs-check.ps1", "scripts/verify.ps1",
-    "tests/governance-smoke.ps1", ".github/PULL_REQUEST_TEMPLATE.md", ".github/workflows/ci.yml",
+    "tests/governance-smoke.ps1", "tests/git-hooks-smoke.ps1", "scripts/install-git-hooks.ps1",
+    ".githooks/commit-msg", ".github/PULL_REQUEST_TEMPLATE.md", ".github/workflows/ci.yml",
     ".github/dependabot.yml", "docs/CI.md"
   ],
   "budgets": [

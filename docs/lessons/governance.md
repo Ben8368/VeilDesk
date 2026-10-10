@@ -7,3 +7,4 @@
 - 保留上游版本和迁移差异，不把参考项目技术栈/阶段门禁直接套在不同产品上。
 - 治理回归夹具只复制 requiredFiles 与 docs Markdown；文档新增 GitHub 配置链接时同步 requiredFiles，否则真仓库通过但夹具会因缺少链接目标被拒绝。
 - 源码或治理改动后、客观验证前必须输出固定 `🚦 Audit Report` 模板；红黄绿分级与覆盖维度以 `docs/AI_RULES.md` 为准，不能只写一句“已审查”。
+- GUI 的 checkpoint 提交可绕过代理读取的署名规则；clone 后安装仓库 hook，并以真实 Git 提交验证拒绝路径，不为自动 checkpoint 猜测 AI 归属。

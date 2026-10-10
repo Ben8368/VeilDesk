@@ -22,7 +22,7 @@
 powershell -NoProfile -File scripts/verify.ps1
 ```
 
-顺序为治理正负检查 → CMake configure → Release build → CTest → Rust 策略/Release/console IPC → 服务/VM 只读与预览检查；任何失败以非零退出。
+顺序为治理正负检查与 Git 署名 hook 回归 → CMake configure → Release build → CTest → Rust 策略/Release/console IPC → 服务/VM 只读与预览检查；任何失败以非零退出。
 缺少交互桌面的 CI 使用 `-SkipInteractive`，跳过标记为 Interactive 的窗口/捕获/共享 GPU 测试，仍运行 BrokerProtocol、Rust 和预览检查；`-SkipService` 显式跳过 Rust 并说明未验证。
 CI 不代表 WDA/DXGI/屏幕真实行为，也不替代目标 OS、OBS、不同 DPI 或多显示器测试。
 工作机不完整 VS 安装的配置方法见 [README](../README.md)，不用该机器特例改变产品技术栈。
