@@ -7,9 +7,9 @@
 | --- | --- |
 | Viewer / D3D11 / WDA / DISPLAY_ONLY / GDI PNG | [Phase 1 验证记录](../tests/VERIFICATION.md) |
 | 外部工具和目标 OS 细分实际结果 | [README 手工测试表](../README.md#manual-testing)，P1 工作包启动后回填证据 |
-| Broker / 共享纹理 / 可信消费者 | [Phase 2 工作包](DEVELOPMENT_BLUEPRINT.md)，实际启动时创建具名证据 |
-| Rust SecureService / 策略 | [Phase 3 工作包](DEVELOPMENT_BLUEPRINT.md) |
-| Hyper-V / 第三方应用 / WDAC、VBS、HVCI | [Phase 4 工作包](DEVELOPMENT_BLUEPRINT.md) |
+| Broker / 共享纹理 / 可信消费者 | [Broker 原型证据](evidence/p2-broker/README.md) |
+| Rust SecureService / 策略 | [服务原型证据](evidence/p3-service/README.md) |
+| Hyper-V / 第三方应用 / WDAC、VBS、HVCI | [Workspace 探针与未运行项](evidence/p4-workspace/README.md) |
 
 ## 新能力记录格式
 

@@ -1,4 +1,4 @@
-# VeilDesk — Phase 1 PoC
+# VeilDesk — Windows 受控显示与 Broker 原型
 
 ## Documentation
 
@@ -9,14 +9,14 @@ Phase 2–4 的成果与 Gate 统一记录在 [ROADMAP](docs/ROADMAP.md)，具�
 
 ## Overview
 
-这是一个原生 Windows 显示捕获限制实验，包含 `SecureViewer.exe` 和 `CaptureTest.exe`。
+这是一个原生 Windows 显示捕获限制与内容出口实验，包含 `SecureViewer.exe`、`CaptureTest.exe`、`CaptureBroker.exe` 和 `SharedTextureProbe.exe`。
 Viewer 使用 D3D11 / DXGI 输出动态背景，使用 Windows SDK 的 Direct2D / DirectWrite 在同一 GPU 表面绘制
 `SECURE CONTENT`、帧计数、系统本地时间、保护状态及彩色测试标记。
 
 该 PoC 用于测试 Windows 官方显示捕获限制能力，目标是阻止或限制常见用户态捕获路径。
 **当前仅保护 Viewer 自己的输出窗口，不保护整个 Windows 桌面，也不保护 Chrome、Edge、微信、QQ、飞书或 Office 的原始窗口。**
 把其他窗口放在 Viewer 后面不会保护它们；WDA 排除 Viewer 时，截图可能显示其后面的桌面内容。
-本阶段没有第三方应用接入、可信录制、临时进程授权或 Capture Broker。
+Broker 原型只处理独立自有测试源和自己启动的消费者，可信输出为有界 PNG 序列；未实现第三方应用或完整 Workspace。详细证据见 [Broker](docs/evidence/p2-broker/README.md)。
 
 ## Threat Model
 
@@ -69,7 +69,34 @@ cmake --build build --config Release
 ```
 
 CMake 配置成功后，常规的两条命令即可重配和重建该目录。CMake 新安装后可能需要重新打开终端刷新 PATH。
-两个程序均嵌入 asInvoker、Windows 10 compatibility 和 Per-Monitor V2 manifest；不会请求管理员权限。
+Viewer、普通捕获和 Broker 均嵌入 asInvoker、Windows 10 compatibility 和 Per-Monitor V2 manifest；不会请求管理员权限。
+
+### Broker 与后续基础设施
+
+指定一个尚不存在的输出目录运行限定测试切片；最多 120 帧，lease 上限 30 秒，到期停止新资源交付：
+
+```powershell
+.\build\Release\CaptureBroker.exe --viewer --frames 8 --output .\artifacts\capture-session-1
+.\build\Release\CaptureBroker.exe --frames 8 --revoke-after 2 --output .\artifacts\capture-session-2
+.\build\Release\SharedTextureProbe.exe
+```
+
+父目录需先存在。Broker 启动独立自有 producer、PNG 消费者和可选 Viewer，纹理不通过截图 API 获得。共享模式要求 WDA 确认，不能通过关闭 WDA 放行可信输出。
+每帧保存为 `frame-N.png`；拒绝覆盖既有目录/文件。PNG 序列是受控测试输出，不是编码视频；内容和日志默认本地留存。
+原型只支持启动树内的固定程序，没有外部进程注册/按 PID 授权；旧快照可以留存，撤销不能追回已交付像素。
+
+Rust 服务独立需要 Rust 1.85+ MSVC 工具链，依赖由 Cargo.lock 锁定。运行 console 验证不会安装服务：
+
+```powershell
+powershell -NoProfile -File scripts/verify-service.ps1
+powershell -NoProfile -File scripts/service-control.ps1 -Action Plan
+powershell -NoProfile -File scripts/workspace-probe.ps1
+powershell -NoProfile -File scripts/workspace.ps1 -Action Plan
+```
+
+服务 IPC 当前仅 STATUS/REVOKE，授予默认拒绝；尚不约束独立 Broker。运维脚本默认预览；服务部署和 VM 生命周期 Apply 路径未在隔离机器验收。
+Workspace 尚无 Guest 显示/输入协议，本机 Hyper-V 管理前提和镜像缺口见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
+完整 `scripts/verify.ps1` 包含 C++/CTest、Rust 策略/console IPC 和只读/预览检查；`-SkipInteractive` 显式跳过 GPU/桌面项，`-SkipService` 显式跳过 Rust，均不能记成阶段验收。
 
 ## Run
 
@@ -241,4 +268,4 @@ CaptureEngine 管理普通 GDI 捕获及 WIC PNG 编码，COM 用 ComPtr，DC / 
 ## Next Phases
 
 后续顺序、Gate 与工作包分别以 [ROADMAP](docs/ROADMAP.md)、[DEVELOPMENT_BLUEPRINT](docs/DEVELOPMENT_BLUEPRINT.md) 为准。
-记录规划不启动实现；当前能力状态见 Context 与具名验证记录。
+本轮维护者已授权 Phase 2–4 源码推进；当前能力、剩余门禁与部署范围见 Context 和具名证据。开发授权不代表 G2/G3/G4 通过。

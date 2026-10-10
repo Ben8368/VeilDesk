@@ -6,6 +6,7 @@ capture*.png
 /tests/results/
 /artifacts/
 /visual-evidence/
+/service/target/
 .env
 .env.*
 !.env.example

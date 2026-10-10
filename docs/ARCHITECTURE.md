@@ -13,9 +13,25 @@ Logger / SystemInfo：诊断，不能承担保护或授权决策
 ```
 
 Window 通过回调通知 resize；图形与保护模块分别拥有自己的资源和状态。
-Renderer 的 `RenderFrame` 是测试源入口，未来可替换为纹理输入；现阶段没有跨进程纹理接口。
+Renderer 的 `RenderFrame` 保留 Phase 1 测试源；共享模式通过 `SetSourcePixels` 输入经校验的帧。
 Direct2D / DirectWrite 是 Windows SDK 中同一 GPU 输出面的文字绘制工具，不是新增 GUI 框架。
 CaptureTest 是验证程序，不是可信录制实现，也不成为保护措施的旁路。
+
+## Phase 2 原型数据流
+
+```text
+CaptureBroker --producer (独立进程 / D3D11)
+      → 私有继承管道 + unnamed NT texture handle
+      → CaptureBroker (保留准确进程对象 / lease / ACK)
+          ├→ SecureViewer --shared-source (WDA 保持 / 帧校验)
+          └→ --consumer (GPU readback / 有界 PNG 序列)
+```
+
+每帧创建新资源；旧资源不再写入未来像素。每通道只允许一帧在途，先 ACK 再下一帧。
+NT 纹理句柄不继承，仅 DuplicateHandle 至已启动且保留的子进程；不提供按 PID 附加或公开资源名称。
+Viewer 当前经 CPU readback 再上传输入纹理，并非零拷贝；独立 producer 不采用第三方应用画面。
+Rust 服务是独立 SCM/诊断 IPC 原型，尚未对 Broker 策略强制执行；Workspace 尚无 Guest 显示通路。
+契约见 [CAPTURE_CONTRACT](CAPTURE_CONTRACT.md)，证据与限制见 [Context](../CONTEXT.md)。
 
 ## 后续目标数据流（设计）
 

@@ -1,33 +1,38 @@
 # 当前状态
 
 > **最后确认：** 2026-10-10
-> **阶段：** Phase 1 / PoC 基线完成；后续阶段保持计划
-> **当前范围：** 本进程 SecureViewer 的官方捕获限制实验，尚非完整 Secure Workspace。
+> **阶段：** Phase 2 / Broker 原型推进；Phase 3–4 基础实现与探测已启动，Gate 未通过。
+> **当前范围：** 自有内容源、受控消费者与后续阶段基础设施，尚非完整 Secure Workspace。
 
 ## 当前事实
 
 - SecureViewer 与 CaptureTest 已实现；C++20 / Win32 / D3D11，普通 GDI 捕获和 WIC PNG 编码。
 - Phase 1 本机限定验证完成；保护 API 成功不代表阻止全部捕获，更不代表保护第三方应用窗口。
-- Phase 2–4 的路线图、工作包与治理基线已建立；后续实现需新任务授权。
-- GitHub 私有仓库：[Ben8368/VeilDesk](https://github.com/Ben8368/VeilDesk)，本地 `origin` 指向该仓库；本轮已授权推送 `main`。
+- 维护者本轮明确授权“继续剩余的 Phase 2-4”；覆盖源码与本地验证，不重复请求开发授权。
+- 独立 producer / Broker / Viewer / PNG 消费者原型已实现；限定结果见 [Broker 证据](docs/evidence/p2-broker/README.md)。
+- Rust 服务入口、默认拒绝 IPC、策略内核和运维预览已实现；见 [服务证据](docs/evidence/p3-service/README.md)。
+- Workspace 探针和 VM 生命周期脚本已实现；Guest 显示/输入尚未实现，见 [Workspace 证据](docs/evidence/p4-workspace/README.md)。
+- GitHub 私有仓库：[Ben8368/VeilDesk](https://github.com/Ben8368/VeilDesk)；Phase 2–4 产品代码仍未提交；本轮 CI/Dependabot 配置已独立推送 `88d1f3b`。
 - 采用单一文档事实源，来源与差异见 [治理迁移记录](docs/archive/reviews/2026-10-10-governance-bootstrap.md)。
 
 ## 近期优先级
 
-1. 按 [P1-01 / P1-02](docs/DEVELOPMENT_BLUEPRINT.md) 补目标 OS、捕获工具及多显示器真实证据。
-2. 新任务启动后按 [P2-01](docs/DEVELOPMENT_BLUEPRINT.md) 收敛 Broker 身份、授权、纹理与撤销设计。
-3. 按 [QUALITY](docs/QUALITY.md) 维护可重复验证与人工验收记录，避免扩大未验证能力承诺。
+1. 评审 [ADR 0004](docs/ADR/0004-private-broker-prototype.md) 的原型边界，补 G2 身份、故障、资源和捕获对照证据。
+2. 收敛服务与 Broker 的主体注册和策略执行，补 G3 的持久化、账户/ACL 与隔离安装恢复验收。
+3. 准备隔离测试机与许可 Guest 镜像后实现 Guest/Host 通路，再按应用逐项验收 G4。
 
 ## 当前风险与限制
 
 - OS / GPU / 捕获工具矩阵尚不完整；细节只在 [RISK-001](docs/RISK_REGISTER.md) 和 [Phase 1 证据](tests/VERIFICATION.md)。
-- 未建立授权 Broker、Windows 服务或 Hyper-V Workspace；计划与 Gate 见 [ROADMAP](docs/ROADMAP.md)。
+- G2/G3/G4 均未通过；服务尚未约束 Broker，VMConnect 不构成受控 Guest 显示通路。
+- 本机未提权安装服务、启用 Hyper-V、创建 VM 或修改 WDAC/VBS/HVCI；维护者确认暂时没有测试机/Guest 镜像。
 - 实现妥协独立记录在 [TECH_DEBT](docs/TECH_DEBT.md)，不以实现数量关闭风险。
 
 ## 最近验证
 
-- Phase 1：本机 Release 构建成功、WindowSmoke / CaptureSmoke 2/2；环境与未覆盖项见 [验证记录](tests/VERIFICATION.md)。
-- 治理基线：文档检查、检查器正负回归和统一完整验证通过；范围与命令见 [迁移记录](docs/archive/reviews/2026-10-10-governance-bootstrap.md)。
+- 本轮统一 `scripts/verify.ps1` 通过：治理正负回归、C++ Release、CTest 5/5、Rust 策略 4/4、console IPC 与只读/预览检查；结果见 [Broker](docs/evidence/p2-broker/README.md)、[服务](docs/evidence/p3-service/README.md)、[Workspace](docs/evidence/p4-workspace/README.md)。
+- Phase 1 基线与历史治理记录保留原有证据，不将新构建替代真实捕获或隔离验收。
+- GitHub 首轮 CI 与 Dependabot 更新任务通过；告警/安全修复已启用，Cargo 更新待服务源码推送；本地两套 Rust lint/test 与 headless 验证通过，见 [CI 证据](docs/evidence/ci/README.md)。
 
 ## 按需入口
 

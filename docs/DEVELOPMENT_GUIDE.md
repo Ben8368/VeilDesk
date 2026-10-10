@@ -28,5 +28,5 @@ GitHub-hosted Windows CI 只验证治理和 Release 构建；窗口/捕获必须
 
 ## 未来语言与部署
 
-Rust 只在 Phase 3 授权后接入服务；Phase 2 Broker 语言的长期选择若变化需 ADR。
+Rust 服务原型通过独立 Cargo crate 接入，依赖锁定在 `service/Cargo.lock`；具体验证入口见 README。C++ 构建不依赖 Rust 链接。
 Hyper-V、WDAC/VBS/HVCI 不作为本地构建先决条件。新阶段安装/系统变更与源码实现分别说明授权范围。

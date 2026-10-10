@@ -123,6 +123,13 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
     const float color[]{0.08F + 0.04F * std::sin(seconds), 0.12F + 0.06F * std::sin(seconds * 0.7F),
         0.22F + 0.1F * std::sin(seconds * 0.5F), 1.0F};
     context_->ClearRenderTargetView(renderTarget_.Get(), color);
+    if (source_) {
+        Microsoft::WRL::ComPtr<ID3D11Texture2D> buffer;
+        if (!Logger::CheckHR(swapChain_->GetBuffer(0, IID_PPV_ARGS(buffer.GetAddressOf())), L"GetBuffer(shared source)")) { return false; }
+        D3D11_TEXTURE2D_DESC desc{}; source_->GetDesc(&desc);
+        const D3D11_BOX region{0, 0, 0, (std::min)(width_, desc.Width), (std::min)(height_, desc.Height), 1};
+        context_->CopySubresourceRegion(buffer.Get(), 0, 0, 0, 0, source_.Get(), 0, &region);
+    }
     textContext_->BeginDraw();
     textContext_->SetTransform(D2D1::Matrix3x2F::Identity());
     textContext_->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -183,5 +190,15 @@ bool D3D11Renderer::RenderFrame(UINT dpi) {
     ++frame_;
     if (frame_ == 1 || frame_ % 300 == 0) { Logger::Info(L"Presented frame " + std::to_wstring(frame_)); }
     return true;
+}
+bool D3D11Renderer::SetSourcePixels(const std::vector<BYTE>& pixels, UINT width, UINT height) {
+    if (width == 0 || height == 0 || width > 4096 || height > 4096 || pixels.size() != static_cast<size_t>(width) * height * 4) {
+        Logger::Error(L"Source dimensions/pixel buffer rejected"); return false;
+    }
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = width; desc.Height = height; desc.MipLevels = 1; desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; desc.SampleDesc.Count = 1;
+    const D3D11_SUBRESOURCE_DATA data{pixels.data(), width * 4, 0};
+    return Logger::CheckHR(device_->CreateTexture2D(&desc, &data, source_.ReleaseAndGetAddressOf()), L"CreateTexture2D(Viewer input)");
 }
 }

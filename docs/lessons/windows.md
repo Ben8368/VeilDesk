@@ -6,3 +6,4 @@
 - `near` 等 Windows SDK 宏可能和局部名字冲突；显式包含关键 COM 声明，用不冲突的标识符。
 - PowerShell 中文源文件统一 UTF-8；验证脚本用严格 UTF-8 读取，Git 文本保持 LF。
 - 提交正文/Trailer 不用字面 `\n`，使用多个 `-m`，提交后解析 trailer。
+- Windows PowerShell 的 Start-Process 返回对象应在子进程退出前缓存 Process.Handle，再 WaitForExit/Refresh 读退出码，避免空 ExitCode 被错误计作进程失败。

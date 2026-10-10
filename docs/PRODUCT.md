@@ -23,7 +23,7 @@ VeilDesk 的长期目标是 Windows Secure Workspace：敏感内容通过受控�
 - 不宣称防御所有恶意软件、管理员完全控制、kernel/driver/hypervisor 控制者或物理相机。
 - 不 Hook 截图 API，不注入 DLL，不更改其他进程窗口 affinity，不做内核驱动或未公开 DWM Hook。
 - 当前不以 Viewer PoC 代表整个桌面或第三方应用已受保护。
-- 当前不提供服务安装器、远程上传、云录制、策略部署或自动虚拟机创建。
+- 不提供远程上传、云录制或无人值守安全策略部署；服务/VM 运维入口的原型范围和真实验收见 Context，默认仅预览。
 
 ## 能力表述
 

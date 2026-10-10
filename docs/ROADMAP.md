@@ -1,7 +1,7 @@
 # 阶段路线与 Gate
 
 本文件维护阶段成果与门禁；当前状态在 [CONTEXT](../CONTEXT.md)，工作拆分在 [DEVELOPMENT_BLUEPRINT](DEVELOPMENT_BLUEPRINT.md)。
-Phase 2–4 为计划。记录路线图不自动启动实现、服务安装或系统策略变更。
+Phase 2–4 已获维护者本轮源码推进授权。Gate 顺序保持；源码授权不包含日常机器服务安装、虚拟化启用或系统策略部署。当前进度与具名证据只在 Context。
 
 ## Phase 1：Windows 官方捕获限制 PoC
 

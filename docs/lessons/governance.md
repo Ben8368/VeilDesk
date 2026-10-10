@@ -5,3 +5,4 @@
 - 检查脚本要能在 Git 初始化前执行，检查源码文档而不是临时工具/构建目录。
 - 初始化仓库前审查忽略规则；`capture*.png` 不会排除 baseline/protected 等其他文件名，按产物目录排除。
 - 保留上游版本和迁移差异，不把参考项目技术栈/阶段门禁直接套在不同产品上。
+- 治理回归夹具只复制 requiredFiles 与 docs Markdown；文档新增 GitHub 配置链接时同步 requiredFiles，否则真仓库通过但夹具会因缺少链接目标被拒绝。

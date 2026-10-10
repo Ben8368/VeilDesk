@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace veil {
 class D3D11Renderer final {
@@ -22,6 +23,7 @@ public:
     // Output/presentation is kept separate from the test source. Phase 2 can
     // replace source drawing with sampling an ID3D11Texture2D in this path.
     bool RenderFrame(UINT dpi);
+    bool SetSourcePixels(const std::vector<BYTE>& pixels, UINT width, UINT height);
     void SetProtectionStatus(std::wstring status) { protectionStatus_ = std::move(status); }
     std::uint64_t FrameCount() const noexcept { return frame_; }
     bool DisplayOnlyEnabled() const noexcept { return (swapFlags_ & DXGI_SWAP_CHAIN_FLAG_DISPLAY_ONLY) != 0; }
@@ -37,6 +39,7 @@ private:
     std::wstring protectionStatus_ = L"Protection not configured";
     std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
     Microsoft::WRL::ComPtr<ID3D11Device> device_;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> source_;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;
     Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain_;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTarget_;

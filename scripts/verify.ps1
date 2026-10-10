@@ -1,7 +1,8 @@
 param(
     [string]$BuildDir = 'build',
     [string[]]$ConfigureArgs = @(),
-    [switch]$SkipInteractive
+    [switch]$SkipInteractive,
+    [switch]$SkipService
 )
 $ErrorActionPreference = 'Stop'
 $rootPath = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -25,12 +26,20 @@ try {
     $buildPath = if ([IO.Path]::IsPathRooted($BuildDir)) { $BuildDir } else { Join-Path $rootPath $BuildDir }
     Invoke-CheckedTool $cmakePath (@('-S', $rootPath, '-B', $buildPath) + $ConfigureArgs)
     Invoke-CheckedTool $cmakePath @('--build', $buildPath, '--config', 'Release')
+    $ctestPath = Join-Path (Split-Path $cmakePath -Parent) 'ctest.exe'
     if ($SkipInteractive) {
-        Write-Output 'SKIPPED: WindowSmoke and CaptureSmoke require an interactive Windows desktop. Build-only is not capture evidence.'
+        Write-Output 'SKIPPED: Interactive Viewer, capture and shared GPU tests. Build/state tests are not capture evidence.'
+        Invoke-CheckedTool $ctestPath @('--test-dir', $buildPath, '-C', 'Release', '--output-on-failure', '-LE', 'Interactive')
     } else {
-        $ctestPath = Join-Path (Split-Path $cmakePath -Parent) 'ctest.exe'
         Invoke-CheckedTool $ctestPath @('--test-dir', $buildPath, '-C', 'Release', '--output-on-failure')
     }
+    if ($SkipService) { Write-Output 'SKIPPED: Rust service build, policy and console IPC verification.' }
+    else {
+        & (Join-Path $PSScriptRoot 'verify-service.ps1')
+        if ($LASTEXITCODE -ne 0) { throw 'Service verification failed' }
+    }
+    & (Join-Path $rootPath 'tests/workspace-smoke.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Workspace/service plan smoke failed' }
     Write-Output 'Verification completed within the reported scope.'
     exit 0
 } catch {
