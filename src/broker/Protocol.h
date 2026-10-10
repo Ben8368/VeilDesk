@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <limits>
 
 namespace veil::broker {
 inline constexpr std::uint32_t magic = 0x5645494c;
@@ -23,6 +24,7 @@ struct Message {
     std::int32_t adapterHigh = 0;
 };
 static_assert(sizeof(Message) == 64);
+bool CreateSessionGeneration(std::uint64_t& generation);
 struct Lease {
     std::uint64_t generation = 1, deadline = 0, lastFrame = 0;
     bool granted = false, revoked = false;
@@ -30,13 +32,18 @@ struct Lease {
     Status Check(const Message& message, std::uint64_t now) const noexcept {
         if (!granted || message.signature != magic || message.protocol != version ||
             message.kind != Kind::Frame || message.status != Status::Ok ||
-            message.generation != generation || message.pixelWidth != pixelWidth || message.pixelHeight != pixelHeight) {
+            message.frame == 0 || message.pixelWidth != pixelWidth || message.pixelHeight != pixelHeight) {
             return Status::Invalid;
         }
         if (revoked) { return Status::Revoked; }
+        if (message.generation != generation) { return Status::Invalid; }
         if (now >= deadline || message.deadline != deadline) { return Status::Expired; }
-        if (message.frame != lastFrame + 1) { return Status::Replay; }
+        if (lastFrame == (std::numeric_limits<std::uint64_t>::max)() || message.frame != lastFrame + 1) { return Status::Replay; }
         return Status::Ok;
+    }
+    void Revoke() noexcept {
+        revoked = true;
+        if (generation != (std::numeric_limits<std::uint64_t>::max)()) { ++generation; }
     }
 };
 }

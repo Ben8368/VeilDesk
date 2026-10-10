@@ -15,6 +15,7 @@ ADR 说明长期决定及理由；Gate 与执行顺序分别在 Roadmap / Bluepr
 | [0005](0005-service-diagnostics-prototype.md) | 提议 | Rust SCM/console、默认拒绝诊断 IPC 与 LocalService 部署候选 |
 | [0006](0006-workspace-lifecycle-preview.md) | 提议 | 只读能力探针、VM 生命周期预览与未实现 Guest 通路 |
 | [0007](0007-gpu-viewer.md) | 已接受 | TD-003 同 adapter GPU 输入、不可变快照与 Recorder CPU 边界 |
+| [0008](0008-owned-child-enrollment.md) | 提议 | 自有工具挂起启动、真实身份快照、retained object 与撤销代际 |
 
 0001 的接受依据为维护者本轮移植治理并首提交的指令；0002/0003 的依据为既有 Phase 1 要求与本轮记录后续阶段的指令。
 本轮明确授权 Phase 2–4 源码推进，0004–0006 记录实际原型的待评审决策；不能借开发授权或既有 0003 视作正式安全设计/Gate 已接受。

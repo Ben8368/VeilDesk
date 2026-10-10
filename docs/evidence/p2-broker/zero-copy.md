@@ -11,7 +11,7 @@ Producer shader 输出经独立 readback 逐像素匹配诊断图案；Recorder 
 
 ## 扩展测试
 
-源码基于 `09d509e` 后的工作树；Release/Debug 扩展构建无警告。最终 `scripts/verify.ps1` 退出 0：Release CTest 7/7、Rust 4/4、console IPC；Debug 全部 CTest 7/7。
+GPU 实现为 `09d509e`；扩展测试与性能基线为 `9d04ebd`；Release/Debug 扩展构建无警告。最终 `scripts/verify.ps1` 退出 0：Release CTest 7/7、Rust 4/4、console IPC；Debug 全部 CTest 7/7。
 
 | Expected | Actual |
 | --- | --- |
@@ -52,3 +52,5 @@ TD-003 的 CPU 显示往返已经消除并实测；Phase 1 测试绘制保持回
 OBS/WGC/DD/PrintScreen/会议共享、其他 OS/GPU、恶意主体/句柄转移和真实 PID 复用 NOT TESTED。零拷贝不是捕获保护的新增安全保证。
 G2 未通过：身份/enrollment、统一服务授权事实源、在途撤销和 Broker 故障矩阵、共享 Viewer 捕获对照及性能/资源证据仍不完整。G3/G4 不推进。
 历史原型结果保留在 [Broker 证据](README.md)，其 CPU 显示描述仅适用于历史版本。
+
+后续 G2 身份/代际增量与剩余缺口见 [enrollment 证据](enrollment.md)，不将该增量当作性能复验。

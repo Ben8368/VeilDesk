@@ -99,7 +99,8 @@ int Consumer(HANDLE input, HANDLE output, const std::filesystem::path& destinati
 }
 bool Deliver(Child& child, HANDLE shared, const Message& source) {
     if (GetTickCount64() >= source.deadline) { Logger::Error(L"Lease expired before handle delivery"); return false; }
-    if (WaitForSingleObject(child.process.get(), 0) != WAIT_TIMEOUT) { Logger::Error(L"Consumer already exited"); return false; }
+    if (!child.enrolled || (child.role != ChildRole::View && child.role != ChildRole::Record) ||
+        !MatchesRetainedProcess(child.process.get(), child.identity)) { return false; }
     HANDLE remote = nullptr;
     if (!DuplicateHandle(GetCurrentProcess(), shared, child.process.get(), &remote, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
         Logger::Win32Error(L"DuplicateHandle(approved retained process)", GetLastError()); return false;
@@ -121,6 +122,8 @@ bool ProtocolTests() {
     if (lease.Check(message, 1) != Status::Invalid) { return false; }
     lease.granted = true;
     if (lease.Check(message, 1) != Status::Ok || lease.Check(message, 100) != Status::Expired) { return false; }
+    auto revoked = lease; revoked.Revoke();
+    if (revoked.generation != 2 || revoked.Check(message, 2) != Status::Revoked) { return false; }
     lease.lastFrame = 1;
     if (lease.Check(message, 2) != Status::Replay) { return false; }
     lease.lastFrame = 0; lease.revoked = true;
@@ -193,11 +196,12 @@ int wmain(int argc, wchar_t** argv) {
         const DWORD length = GetModuleFileNameW(nullptr, executable, static_cast<DWORD>(std::size(executable)));
         if (!length || length >= std::size(executable)) { Logger::Win32Error(L"GetModuleFileNameW", GetLastError()); return 1; }
         Child producer, recorder, display;
-        if (!producer.Start(executable, producerExit ? L"--producer --exit-on-frame" : L"--producer")) { return 1; }
-        if (!benchmark && !recorder.Start(executable, L"--consumer --output \"" + destination.wstring() + L"\"" + (stall ? L" --stall" : L"") + (consumerExit ? L" --exit-on-frame" : L""))) { return 1; }
+        if (!producer.Start(executable, producerExit ? L"--producer --exit-on-frame" : L"--producer", ChildRole::Producer)) { return 1; }
+        if (!benchmark && !recorder.Start(executable, L"--consumer --output \"" + destination.wstring() + L"\"" + (stall ? L" --stall" : L"") + (consumerExit ? L" --exit-on-frame" : L""), ChildRole::Record)) { return 1; }
         if (viewer && !display.Start((std::filesystem::path(executable).parent_path() / L"SecureViewer.exe").wstring(),
-            (benchmark ? L"--shared-source --run-seconds 90 --benchmark-display" : L"--shared-source --run-seconds 15 --capture-ready"))) { return 1; }
+            (benchmark ? L"--shared-source --run-seconds 90 --benchmark-display" : L"--shared-source --run-seconds 15 --capture-ready"), ChildRole::View)) { return 1; }
         Lease lease{1, GetTickCount64() + (expired ? 0 : (benchmark ? 90000 : 30000)), 0, !deny, false};
+        if (!CreateSessionGeneration(lease.generation)) { return 1; }
         if (benchmark) { lease.pixelWidth = 1920; lease.pixelHeight = 1080; }
         SharedFrameConsumer brokerGpu;
         if (!brokerGpu.Initialize()) { return 1; }
@@ -211,9 +215,9 @@ int wmain(int argc, wchar_t** argv) {
                 if (!metrics.Sample(producer.process.get(), display.process.get())) { return 1; }
             }
             const auto deliveryStart = Benchmark::Clock::now();
-            Message message; message.frame = frame; message.deadline = lease.deadline;
+            Message message; message.frame = frame; message.deadline = lease.deadline; message.generation = lease.generation;
             message.pixelWidth = lease.pixelWidth; message.pixelHeight = lease.pixelHeight;
-            if (revokeAfter && delivered == revokeAfter) { lease.revoked = true; }
+            if (revokeAfter && delivered == revokeAfter) { lease.Revoke(); }
             const auto decision = lease.Check(message, GetTickCount64());
             if (decision != Status::Ok) { Logger::Info(L"Lease terminal status=" + std::to_wstring(static_cast<unsigned>(decision))); break; }
             if (!Send(producer.input.get(), message)) { return 1; }
@@ -247,7 +251,7 @@ int wmain(int argc, wchar_t** argv) {
             metrics.Pace(3600);
             if (!metrics.Sample(producer.process.get(), display.process.get()) || !metrics.Save(destination, delivered, AdapterText(brokerGpu.Adapter()))) { return 1; }
         }
-        Message stop; stop.kind = Kind::Stop;
+        Message stop; stop.kind = Kind::Stop; stop.generation = lease.generation;
         if (!Send(producer.input.get(), stop) || (!benchmark && !Send(recorder.input.get(), stop)) || (viewer && !Send(display.input.get(), stop))) { return 1; }
         if (!producer.Finish() || (!benchmark && !recorder.Finish()) || (viewer && !display.Finish())) { return 1; }
         std::wcout << L"Delivered=" << delivered << L"; elapsed_ms=" << GetTickCount64() - started << L"\n";

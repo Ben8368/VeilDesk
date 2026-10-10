@@ -18,7 +18,7 @@
 ## 近期优先级
 
 1. TD-003 CPU 往返已消除；按 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)继续处理 TD-005 性能/资源限制。
-2. 收敛 G2 身份、lease、撤销、故障矩阵；服务集成在 G2 可接受后推进。
+2. [自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现；继续统一 lease、在途撤销和 G2 故障矩阵。
 3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 
 ## 当前风险与限制

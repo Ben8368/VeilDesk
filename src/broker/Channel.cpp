@@ -1,6 +1,7 @@
 #include "broker/Channel.h"
 #include "common/Logger.h"
 #include <vector>
+#include <filesystem>
 
 namespace veil::broker {
 bool Receive(HANDLE pipe, Message& message, DWORD timeoutMs) {
@@ -33,7 +34,15 @@ bool Send(HANDLE pipe, const Message& message) {
     if (written != sizeof(message)) { Logger::Error(L"Short protocol write"); return false; }
     return true;
 }
-bool Child::Start(const std::wstring& executable, const std::wstring& options) {
+bool Child::Start(const std::wstring& executable, const std::wstring& options, ChildRole approvedRole) {
+    ProcessIdentity parent;
+    if (process || (approvedRole != ChildRole::Producer && approvedRole != ChildRole::View && approvedRole != ChildRole::Record) ||
+        !ReadProcessIdentity(GetCurrentProcess(), parent)) { return false; }
+    const auto expected = approvedRole == ChildRole::View ?
+        (std::filesystem::path(parent.imagePath).parent_path() / L"SecureViewer.exe").wstring() : parent.imagePath;
+    if (!SameImage(executable, expected)) {
+        Logger::Error(L"Location: Enrollment; Cause: executable outside own tool allowlist; Action: deny before launch"); return false;
+    }
     SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
     HANDLE childRead = nullptr, parentWrite = nullptr, parentRead = nullptr, childWrite = nullptr;
     if (!CreatePipe(&childRead, &parentWrite, &security, 4096)) {
@@ -73,11 +82,23 @@ bool Child::Start(const std::wstring& executable, const std::wstring& options) {
         std::to_wstring(reinterpret_cast<std::uintptr_t>(write.get()));
     PROCESS_INFORMATION info{};
     if (!CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, TRUE,
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW, nullptr, nullptr, &startup.StartupInfo, &info)) {
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr, nullptr, &startup.StartupInfo, &info)) {
         Logger::Win32Error(L"CreateProcessW(approved child)", GetLastError()); return false;
     }
-    process.reset(info.hProcess); Handle thread(info.hThread); pid = info.dwProcessId;
-    Logger::Info(L"Approved child retained as process object; no PID/path-only attachment");
+    process.reset(info.hProcess); Handle thread(info.hThread);
+    if (!ReadProcessIdentity(process.get(), identity) || identity.pid != info.dwProcessId ||
+        !SamePrincipal(parent, identity) || !SameImage(expected, identity.imagePath)) {
+        Logger::Error(L"Location: Enrollment; Cause: identity/session/SID/image mismatch; Action: deny, terminate owned suspended child"); return false;
+    }
+    role = approvedRole; enrolled = true;
+    const DWORD resumed = ResumeThread(thread.get());
+    if (resumed != 1) {
+        if (resumed == MAXDWORD) { Logger::Win32Error(L"Enrollment ResumeThread; Action: deny", GetLastError()); }
+        else { Logger::Error(L"Enrollment unexpected thread suspend count; Action: deny"); }
+        enrolled = false; return false;
+    }
+    Logger::Info(L"Enrolled own child: retained process object, PID/creation/session/SID/image; publisher NOT VERIFIED; role=" +
+        std::to_wstring(static_cast<unsigned>(role)));
     return true;
 }
 bool Child::Finish() {

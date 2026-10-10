@@ -7,7 +7,7 @@
 | --- | --- | --- | --- |
 | RISK-001 | Windows 10/11 目标版本、GPU/驱动、OBS/截图工具、第二显示器与 DPI 矩阵未覆盖 | 通用兼容承诺；G1 仅限定环境 | P1-01/P1-02 按 QUALITY 真机对照；细节见 Phase 1 验证记录 |
 | RISK-002 | WDA / DISPLAY_ONLY 不是对系统控制者的边界；排除 Viewer 可暴露底层第三方窗口 | 所有阶段的安全/产品文案 | 持续限制威胁模型；不可用普通 smoke 关闭，范围改变需 ADR |
-| RISK-003 | 同用户进程身份、PID 复用、句柄继承/转移及共享纹理内容泄漏 | 阻断 G2 授权能力 | [原型证据](evidence/p2-broker/README.md)采用保留进程对象/私有继承通道；通用身份、恶意同用户窃取与句柄转移仍开放 |
+| RISK-003 | 同用户进程身份、PID 复用、句柄继承/转移及共享纹理内容泄漏 | 阻断 G2 授权能力 | [原型证据](evidence/p2-broker/README.md)采用保留进程对象/私有继承通道；挂起启动/真实 SID/session/creation/image/角色已实现，publisher/envelope 未完成；恶意同用户窃取与句柄转移仍开放 |
 | RISK-004 | 授权撤销不撤回已交付像素；旧资源和在途帧可继续被访问 | 阻断 G2 撤销承诺 | [原型证据](evidence/p2-broker/README.md)验证旧快照不变及帧间撤销；在途撤销、恶意留存和完整故障矩阵仍开放 |
 | RISK-005 | 跨 adapter、同步死锁、device loss、带宽和长期资源使用未确定 | G2 兼容与性能 | [GPU 证据](evidence/p2-broker/zero-copy.md)已覆盖本机跨 adapter 拒绝/超时；1080p 吞吐约 18FPS，private bytes 热身后增长、长期稳定性仍未验收 |
 | RISK-006 | 服务账户、IPC、策略持久化与安装恢复可能扩大权限/数据风险 | 阻断 G3 | [服务证据](evidence/p3-service/README.md)仅覆盖 console IPC/策略内核；SCM、LocalService、ACL 拒绝、Broker 强制执行和持久化未验收 |
