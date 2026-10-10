@@ -1,5 +1,6 @@
 #include "window/SecureWindow.h"
 #include "common/Logger.h"
+#include "common/ProgressWatchdog.h"
 #include "common/PreciseTimer.h"
 #include <chrono>
 #include <utility>
@@ -67,10 +68,13 @@ int SecureWindow::Run(const std::function<bool()>& render, unsigned int runSecon
     MSG msg{};
     PreciseTimer idle;
     for (;;) {
+        if (progress_) { progress_->Checkpoint("peek-window-message"); }
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) { return failed_ ? 1 : static_cast<int>(msg.wParam); }
             TranslateMessage(&msg);
+            if (progress_) { progress_->Checkpoint("dispatch-window-message", UINT64_MAX, msg.message); }
             DispatchMessageW(&msg);
+            if (progress_) { progress_->Checkpoint("dispatched-window-message"); }
         }
         if (smokeTest && std::chrono::steady_clock::now() - start >= std::chrono::milliseconds(400 * (smokeStep + 1)) && smokeStep < smokeSteps) {
             bool success = true;
@@ -111,10 +115,13 @@ int SecureWindow::Run(const std::function<bool()>& render, unsigned int runSecon
         } else {
             // Throttle idle, minimized and occluded windows without busy spinning.
             const DWORD interval = minimized_ ? 100 : 8;
+            if (progress_) { progress_->Checkpoint("idle-arm"); }
             const bool precise = idle.Arm(interval);
             HANDLE timer = idle.Get();
+            if (progress_) { progress_->Checkpoint("idle-wait"); }
             const DWORD wait = MsgWaitForMultipleObjectsEx(precise ? 1 : 0, precise ? &timer : nullptr,
                 precise ? interval + 100 : interval, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+            if (progress_) { progress_->Checkpoint("idle-complete"); }
             if (wait == WAIT_FAILED) { Logger::Win32Error(L"MsgWaitForMultipleObjectsEx", GetLastError()); return 1; }
         }
     }
@@ -154,7 +161,9 @@ LRESULT CALLBACK SecureWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam
             Logger::Win32Error(L"SetWindowLongPtrW(user data)", GetLastError()); return FALSE;
         }
     }
+    if (self && self->progress_) { self->progress_->Checkpoint("process-window-message", UINT64_MAX, message); }
     const LRESULT result = self ? self->ProcessMessage(message, wparam, lparam) : DefWindowProcW(hwnd, message, wparam, lparam);
+    if (self && self->progress_) { self->progress_->Checkpoint("processed-window-message", UINT64_MAX, message); }
     if (message == WM_NCDESTROY && self) { self->hwnd_ = nullptr; }
     return result;
 }

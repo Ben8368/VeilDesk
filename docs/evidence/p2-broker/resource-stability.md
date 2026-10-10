@@ -33,9 +33,24 @@ CLI 有界：duration 1..7200s、fps 1..240、width 216..4096、height 36..4096�
 
 ## 本轮执行
 
-第一次 1800 秒运行约 8 分钟中断：Viewer Present=occluded，现有逻辑拒绝 ACK，管道终止；仅保留 partial CSV，不计作 30 分钟通过。随后只读 WTS 探针观察到会话由 LOCKED 恢复 UNLOCKED；不能将中断归因于资源增长。新增 benchmark 要求 active/unlocked（开始及采样），测试期间临时 SetThreadExecutionState 保持显示活动、退出恢复；不改变电源/安全策略或绕过手动锁屏。第二次完整运行在约 106 秒后 IPC deadline exceeded；桌面仍 UNLOCKED，未定位具体等待阶段，不将其归因于资源泄漏或判通过。补充 role/stage 超时日志、慢采样记录与 modal move/resize 事件；子进程明确继承 NUL 作为标准 I/O，业务 capability 仍为精确继承的私有管道；这属于消除隐式标准句柄歧义，尚未证明是超时根因。第三次运行约 41 秒后再次 broker consumer/viewer ACK timeout；producer frame ACK 随后到期，无 slow sample/modal 记录，NUL 改动未解决超时。新增 benchmark Viewer 单个 progress observer（最多 128 条独立文件事件），只读取主线程检查点，不调用 D3D 或授权 API；GPU copy / D2D / Present / ACK / frame-log 分阶段诊断。子进程保留文件日志，关闭可能阻塞的外部 debug/stdout sinks；尚未证明是根因。后续完整 1800 秒重跑待执行；尚未评审资源稳定性。最终环境、source commit、数值、曲线结论和测试结果待运行结束回填。G2-A：NOT REVIEWED；G2-B/C/D 未完成；G2/G3/G4 未通过。
+第一次 1800 秒运行约 8 分钟中断：Viewer Present=occluded，现有逻辑拒绝 ACK，管道终止；仅保留 partial CSV，不计作 30 分钟通过。随后只读 WTS 探针观察到会话由 LOCKED 恢复 UNLOCKED；不能将中断归因于资源增长。新增 benchmark 要求 active/unlocked（开始及采样），测试期间临时 SetThreadExecutionState 保持显示活动、退出恢复；不改变电源/安全策略或绕过手动锁屏。第二次完整运行在约 106 秒后 IPC deadline exceeded；桌面仍 UNLOCKED，未定位具体等待阶段，不将其归因于资源泄漏或判通过。补充 role/stage 超时日志、慢采样记录与 modal move/resize 事件；子进程明确继承 NUL 作为标准 I/O，业务 capability 仍为精确继承的私有管道；这属于消除隐式标准句柄歧义，尚未证明是超时根因。第三次运行约 41 秒后再次 broker consumer/viewer ACK timeout；producer frame ACK 随后到期，无 slow sample/modal 记录，NUL 改动未解决超时。新增 benchmark Viewer 单个 progress observer（最多 128 条独立文件事件），只读取主线程检查点，不调用 D3D 或授权 API；GPU copy / D2D / Present / ACK / frame-log 分阶段诊断。子进程保留文件日志，关闭可能阻塞的外部 debug/stdout sinks；尚未证明是根因。第四次运行在约 71 秒后 Viewer ACK timeout；progress 最后为 frame-complete/frame=4439，停顿在帧回调外，尚未证明是 GPU 或日志阻塞。补充窗口消息/idle-wait 检查点；benchmark 使用固定尺寸无边框窗口，排除非客户区菜单/拖动测量干扰，正常 Viewer 窗口测试不变。后续完整 1800 秒重跑待执行；尚未评审资源稳定性。最终环境、source commit、数值、曲线结论和测试结果待运行结束回填。G2-A：NOT REVIEWED；G2-B/C/D 未完成；G2/G3/G4 未通过。
 
 启动前完整 Release verify 通过（8/8）；随后 Debug 与 Release 捕获基线失效，截图只有桌面背景。自有 HWND visible=true / affinity=0，input/thread desktop=Default；前台激活未接受；后续 WTSINFOEX 只读探针确认 session flags=LOCKED，screensaver=false。不能把锁屏条件当作保护通过。复现脚本记录只读桌面状态，不尝试解锁。恢复 UNLOCKED 后完整 verify PASS：Release CTest 10/10、Debug build/CTest 10/10；Rust 1.85.1/stable fmt、clippy -D warnings、策略 4/4，以及 console IPC PASS。新增 BenchmarkSmoke/BenchmarkAnalysis 两种构建均通过；这些不替代待执行的完整长测。加入进度诊断后 Release/Debug CTest 11/11、完整 verify 与 Rust/console IPC 再次通过；ProgressWatchdogProbe 的模拟停顿/正常 join 仅为诊断测试。
+
+## 失败运行与当前阻断
+
+下表为最后成功采样点，不是运行总时长或最终帧数；四次均无完成的 benchmark.json。不能从这些前缀计算真实 30 分钟平均/p95/p99，也不能关闭 TD-005。
+
+| Source | 工作树 | 最后采样秒 | 最后采样 displayed | 结果 |
+| --- | --- | --- | --- | --- |
+| ea4632d | 有采样改动 | 481.90 | 28626 | FAIL / occluded，未完成 |
+| 047f87b | clean | 106.15 | 6240 | FAIL / IPC timeout，未完成 |
+| 62a8a00 | clean | 41.23 | 2384 | FAIL / Viewer ACK timeout，未完成 |
+| 4c41d98 | clean | 71.11 | 4163 | FAIL / Viewer ACK timeout，progress frame-complete=4439 |
+
+当前 WTSInfoEx 再次确认 LOCKED。窗口消息诊断/固定夹具补丁的 Release/Debug build PASS；完整 Release CTest 9/11（CaptureSmoke 无效基线、BenchmarkSmoke 拒绝 LOCKED），完整 verify FAIL。随后显式 -SkipInteractive 的 verify PASS（非交互 CTest 5/5、Rust 4/4、console IPC/preview）；Debug 非交互 CTest 5/5 PASS。这不替代新夹具真机测试。
+
+**继续所需条件：** Windows 桌面解锁并在真实 1800 秒运行期间持续可用；不修改锁屏安全策略、不自动解除锁定、不让锁定/unknown 状态放行。先复测新夹具，再完成全程曲线与失效定位。G2-A 尚未通过，G2-B/C/D 未开始，不进入 G3/Phase 4。
 
 ## 官方 API 依据
 

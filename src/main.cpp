@@ -84,7 +84,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         try { progress = std::make_unique<veil::ProgressWatchdog>(L"Viewer-progress.log"); }
         catch (const std::exception&) { veil::Logger::Error(L"Benchmark progress observer initialization failed"); return 1; }
     }
+    window.SetProgress(progress.get());
     veil::D3D11Renderer renderer;
+    struct ClearWindowBindings {
+        veil::SecureWindow& window;
+        ~ClearWindowBindings() { window.SetResizeHandler({}); window.SetProgress(nullptr); }
+    } clearBindings{window};
     renderer.SetProgress(progress.get());
     if (sharedSource) { renderer.SetStats(&stats); }
     renderer.SetProtectionStatus(status.enabled ? L"WDA_EXCLUDEFROMCAPTURE: API enabled" : L"WDA: NOT CONFIRMED / UNPROTECTED");
@@ -106,13 +111,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     }
     if (benchmarkDisplay) {
         if (!sharedSource) { return 1; }
+        // Measurement fixture has no non-client menus/drag loops; normal Viewer retains its window controls.
+        SetLastError(ERROR_SUCCESS);
+        if (!SetWindowLongPtrW(window.Handle(), GWL_STYLE, WS_POPUP | WS_VISIBLE) && GetLastError() != ERROR_SUCCESS) {
+            veil::Logger::Win32Error(L"Benchmark fixed window style", GetLastError()); return 1;
+        }
         RECT rect{0, 0, static_cast<LONG>(benchmarkWidth), static_cast<LONG>(benchmarkHeight)};
         if (!AdjustWindowRectExForDpi(&rect, static_cast<DWORD>(GetWindowLongPtrW(window.Handle(), GWL_STYLE)),
             FALSE, static_cast<DWORD>(GetWindowLongPtrW(window.Handle(), GWL_EXSTYLE)), window.Dpi()) ||
-            !SetWindowPos(window.Handle(), HWND_TOPMOST, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOACTIVATE)) {
+            !SetWindowPos(window.Handle(), HWND_TOPMOST, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOACTIVATE | SWP_FRAMECHANGED)) {
             veil::Logger::Win32Error(L"Benchmark Viewer size", GetLastError()); return 1;
         }
         window.Show(SW_SHOWNORMAL);
+        veil::Logger::Info(L"Benchmark fixed borderless fixture; ordinary Viewer controls remain in normal mode");
     }
     bool stopped = false;
     const int result = window.Run([&] {
