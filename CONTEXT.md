@@ -18,7 +18,7 @@
 ## 近期优先级
 
 1. TD-005 吞吐已定位为计时器取整并修复（约 59FPS，未引入 pool）；剩余长时资源/CPU 证据见 [GPU 证据](docs/evidence/p2-broker/zero-copy.md)。
-2. [自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现；继续统一 lease、在途撤销和 G2 故障矩阵。
+2. 按 [Blueprint G2 剩余收敛](docs/DEVELOPMENT_BLUEPRINT.md) G2-A→D：长时资源、统一 Authorization Envelope、Authenticode enrollment、在途撤销/故障矩阵；[自有工具身份](docs/evidence/p2-broker/enrollment.md)已增量实现。
 3. G2/G3 验收后再推进 Guest/Host 通路；准备隔离测试机和许可 Guest 镜像。
 
 ## 当前风险与限制

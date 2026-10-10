@@ -42,6 +42,19 @@
 - 覆盖批准、到期、主动撤销、在途帧和旧句柄；必要时轮换源资源，验证停止新帧的实际边界。
 - 验收：可信输出可独立读取，普通路径仍按原限制验证，已交付内容无法追回的限制可见。
 
+### G2 剩余收敛（维护者 2026-10-10 指定顺序）
+
+TD-005 吞吐已定位并修复（见 [GPU 证据](evidence/p2-broker/zero-copy.md)）；以下按 G2-A → G2-B → G2-C → G2-D 推进，均归属 P2-03/P2-04/P2-05。
+
+| ID | 工作 | 验收产物 |
+| --- | --- | --- |
+| G2-A | TD-005 收尾：≥30 分钟 1080p 资源曲线、GPU 专用内存、轮询 CPU/功耗、高精度 timer 回退 | 有界/无增长证据或限定接受；仅当创建成本不可接受时评审 generation 资源池（保持已发布快照不复写） |
+| G2-B | 统一 Authorization Envelope：Service 与 Broker 只有一个 lease 真相源 | ADR 先行（真相源归属、字段、完整性保护、版本/deadline/generation、IPC 契约）；Broker 只执行 envelope，伪造/过期/重放/降级负向证据 |
+| G2-C | Publisher / Authenticode enrollment | 在 `ProcessIdentity` 上加签名/发布者校验；未签名、错发布者、篡改映像负向证据；正向需测试证书，未具备时写未测 |
+| G2-D | 在途撤销 + crash / device-loss 故障矩阵 | 依赖 G2-B；撤销与在途帧、producer/consumer/Broker 崩溃、device removed/reset 的终态、清理和"已交付像素不可追回"边界逐项证据 |
+
+G2-A–D 和 P2-05 通过前不推进 Service → Broker 接管或 G3；完成数量不等于 Gate 通过。
+
 ### P2-05 G2 评审
 
 - 固定环境对照普通捕获与可信输出；测资源、延迟/帧正确性，不先填性能承诺。
